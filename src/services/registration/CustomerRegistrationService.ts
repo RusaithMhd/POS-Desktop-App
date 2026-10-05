@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Database } from 'sql.js';
 import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -456,6 +457,12 @@ export class CustomerRegistrationService {
       db.run(`UPDATE subscriptions SET status = 'SUSPENDED', updated_at = ? WHERE organization_id = ?`, [now, organizationId]);
       db.run(`UPDATE customer_registrations SET status = 'SUSPENDED', notes = ?, updated_at = ? WHERE organization_id = ?`, [reason, now, organizationId]);
       saveLocalDbState();
+
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('customer_registrations').update({ status: 'SUSPENDED', notes: reason, updated_at: now }).eq('organization_id', organizationId).then();
+        supabase.from('subscriptions').update({ status: 'SUSPENDED', updated_at: now }).eq('organization_id', organizationId).then();
+      }
+
       return true;
     } catch { return false; }
   }
@@ -471,6 +478,12 @@ export class CustomerRegistrationService {
       db.run(`UPDATE subscriptions SET status = 'ACTIVE', updated_at = ? WHERE organization_id = ?`, [now, organizationId]);
       db.run(`UPDATE customer_registrations SET status = 'ACTIVE', updated_at = ? WHERE organization_id = ?`, [now, organizationId]);
       saveLocalDbState();
+
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('customer_registrations').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId).then();
+        supabase.from('subscriptions').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId).then();
+      }
+
       return true;
     } catch { return false; }
   }
@@ -531,6 +544,21 @@ export class CustomerRegistrationService {
       );
       db.run(`UPDATE customer_registrations SET status = 'TRIALING', updated_at = ? WHERE organization_id = ?`, [now, organizationId]);
       saveLocalDbState();
+
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('subscriptions').update({
+          status: 'TRIALING',
+          trial_ends_at: newEnd,
+          current_period_end: newEnd,
+          updated_at: now,
+        }).eq('organization_id', organizationId).then();
+
+        supabase.from('customer_registrations').update({
+          status: 'TRIALING',
+          updated_at: now,
+        }).eq('organization_id', organizationId).then();
+      }
+
       return true;
     } catch { return false; }
   }
@@ -590,6 +618,42 @@ export class CustomerRegistrationService {
     );
 
     saveLocalDbState();
+
+    // 5. Sync to Supabase Cloud if configured
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('organizations').upsert({
+          id: orgId,
+          name: payload.businessName,
+          code: orgCode,
+          email: payload.email.toLowerCase().trim(),
+          phone: payload.phone || null,
+        });
+
+        await supabase.from('customer_registrations').upsert({
+          id: regId,
+          organization_id: orgId,
+          email: payload.email.toLowerCase().trim(),
+          full_name: payload.fullName,
+          business_name: payload.businessName,
+          phone: payload.phone || null,
+          country: payload.country || 'Sri Lanka',
+          selected_plan_code: 'FREE_TRIAL',
+          billing_cycle: 'monthly',
+          status: 'TRIALING',
+        });
+
+        await supabase.from('subscriptions').upsert({
+          id: subId,
+          organization_id: orgId,
+          status: 'TRIALING',
+          billing_cycle: 'monthly',
+          trial_ends_at: trialEndsAt,
+        });
+      } catch (err) {
+        console.warn('[Supabase] Free trial cloud sync error:', err);
+      }
+    }
 
     return {
       trialId,

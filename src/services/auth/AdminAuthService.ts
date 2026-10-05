@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Database } from 'sql.js';
-import { getRawSqlDb } from '@/infrastructure/database/sqlite/db';
+import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -59,6 +59,39 @@ export { ensureAdminTables, ensureInitialSuperAdmin };
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class AdminAuthService {
+  // ---------------------------------------------------------------------------
+  // INITIAL ADMIN CHECK & CUSTOM SETUP (No default credentials)
+  // ---------------------------------------------------------------------------
+
+  static hasAnyAdminUsers(): boolean {
+    try {
+      const db = getRawSqlDb();
+      ensureAdminTables(db);
+      const stmt = db.prepare('SELECT COUNT(*) as cnt FROM admin_users WHERE is_active = 1');
+      let cnt = 0;
+      if (stmt.step()) cnt = (stmt.getAsObject().cnt as number) || 0;
+      stmt.free();
+      return cnt > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  static async setupInitialSuperAdmin(email: string, password: string, fullName: string = 'Super Administrator'): Promise<AdminSession> {
+    const db = getRawSqlDb();
+    ensureAdminTables(db);
+    const now = new Date().toISOString();
+    const id = `sadmin-${Date.now()}`;
+    const hash = bcrypt.hashSync(password, 12);
+    db.run(
+      `INSERT INTO admin_users (id, email, password_hash, full_name, role, is_active, mfa_enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'SUPER_ADMIN', 1, 0, ?, ?)`,
+      [id, email.toLowerCase().trim(), hash, fullName, now, now]
+    );
+    saveLocalDbState();
+    return this.login(email, password);
+  }
+
   // ---------------------------------------------------------------------------
   // LOGIN (completely separate from customer auth)
   // ---------------------------------------------------------------------------

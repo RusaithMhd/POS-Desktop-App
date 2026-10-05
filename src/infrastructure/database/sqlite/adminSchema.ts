@@ -77,7 +77,7 @@ export function ensureAdminTables(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_customer_reg_status ON customer_registrations(status);
   `);
 
-  // Seed the initial SUPER_ADMIN if no admins exist
+  // Only seed initial superadmin if explicitly provided via environment variables
   ensureInitialSuperAdmin(db);
 }
 
@@ -88,13 +88,18 @@ export function ensureInitialSuperAdmin(db: Database): void {
   stmt.free();
   if (cnt > 0) return;
 
-  const now = new Date().toISOString();
-  const id = `sadmin-${Date.now()}`;
-  // Default credentials: admin@triwyn.com / SuperAdmin@2026!
-  const hash = bcrypt.hashSync('SuperAdmin@2026!', 12);
-  db.run(
-    `INSERT INTO admin_users (id, email, password_hash, full_name, role, is_active, mfa_enabled, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, 'admin@triwyn.com', hash, 'System Super Admin', 'SUPER_ADMIN', 1, 0, now, now]
-  );
+  const envEmail = process.env.ADMIN_INITIAL_EMAIL;
+  const envPassword = process.env.ADMIN_INITIAL_PASSWORD;
+
+  if (envEmail && envPassword) {
+    const now = new Date().toISOString();
+    const id = `sadmin-${Date.now()}`;
+    const hash = bcrypt.hashSync(envPassword, 12);
+    db.run(
+      `INSERT INTO admin_users (id, email, password_hash, full_name, role, is_active, mfa_enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'SUPER_ADMIN', 1, 0, ?, ?)`,
+      [id, envEmail.toLowerCase().trim(), hash, 'System Super Admin', now, now]
+    );
+  }
 }
+

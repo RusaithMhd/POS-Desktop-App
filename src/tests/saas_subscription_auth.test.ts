@@ -160,8 +160,9 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
       );
     `);
 
-    // Ensure admin tables and seed initial super admin
+    // Ensure admin tables and seed test super admin
     ensureAdminTables(db);
+    AdminAuthService.setupInitialSuperAdmin('admin@triwyn.com', 'SuperAdmin@2026!', 'Test Super Admin');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
