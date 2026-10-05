@@ -146,12 +146,6 @@ export class CustomerRegistrationService {
 
       saveLocalDbState();
 
-      // In production: send email verification here
-      // For offline: auto-verify (simulate email click)
-      // We skip actual email sending for offline desktop app
-      // and instead provide the token in the response so the status page can auto-verify
-      console.log(`[Registration] Email verification token for ${payload.email}: ${verificationToken}`);
-
       return {
         success: true,
         registrationId: regId,
@@ -329,72 +323,12 @@ export class CustomerRegistrationService {
 
   static ensureDefaultRegistrations(db: any): void {
     try {
-      const countStmt = db.prepare(`SELECT COUNT(*) as count FROM customer_registrations`);
-      let count = 0;
-      if (countStmt.step()) {
-        count = (countStmt.getAsObject().count as number) || 0;
-      }
-      countStmt.free();
-
-      if (count === 0) {
-        const now = new Date().toISOString();
-        const trialEnd = new Date(Date.now() + 14 * 86400_000).toISOString();
-
-        // 1. Merchant 1
-        db.run(
-          `INSERT OR IGNORE INTO customer_registrations
-            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
-           VALUES ('reg-demo-1', 'org-1791213425877-466xxh', 'chlifrost@gmail.com', 'Rusaith Muhammathu', 'TFTFTF', '0770802365', 'Sri Lanka', 'demo_hash', 'FREE_TRIAL', 'monthly', 'ACTIVE', datetime('now', '-2 days'), datetime('now'))`
-        );
-        db.run(
-          `INSERT OR IGNORE INTO subscriptions
-            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
-           VALUES ('sub-demo-1', 'org-1791213425877-466xxh', 'plan-free-trial', 'ACTIVE', 'monthly', datetime('now', '-2 days'), ?, ?, datetime('now', '-2 days'), datetime('now'))`,
-          [trialEnd, trialEnd]
-        );
-
-        // 2. Merchant 2
-        db.run(
-          `INSERT OR IGNORE INTO customer_registrations
-            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
-           VALUES ('reg-demo-2', 'org-1791204899120-881bba', 'chlifrost.tl@gmail.com', 'Rusaith Muhammathu', 'Rusaith Retail', '0750802353', 'Sri Lanka', 'demo_hash', 'FREE_TRIAL', 'monthly', 'TRIALING', datetime('now', '-1 hours'), datetime('now'))`
-        );
-        db.run(
-          `INSERT OR IGNORE INTO subscriptions
-            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
-           VALUES ('sub-demo-2', 'org-1791204899120-881bba', 'plan-free-trial', 'TRIALING', 'monthly', datetime('now'), ?, ?, datetime('now'), datetime('now'))`,
-          [trialEnd, trialEnd]
-        );
-
-        // 3. Merchant 3
-        db.run(
-          `INSERT OR IGNORE INTO customer_registrations
-            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
-           VALUES ('reg-demo-3', 'org-1791198421045-992ccd', 'rusairzeck72@gmail.com', 'Muhammathu Rusaith', 'Apex Commercial', '0770802365', 'Sri Lanka', 'demo_hash', 'STARTER', 'yearly', 'ACTIVE', datetime('now', '-5 days'), datetime('now'))`
-        );
-        db.run(
-          `INSERT OR IGNORE INTO subscriptions
-            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
-           VALUES ('sub-demo-3', 'org-1791198421045-992ccd', 'plan-starter', 'ACTIVE', 'yearly', datetime('now', '-5 days'), datetime('now', '+360 days'), null, datetime('now', '-5 days'), datetime('now'))`
-        );
-
-        // 4. Default Devices
-        db.run(
-          `INSERT OR IGNORE INTO registered_devices
-            (id, organization_id, device_name, device_type, terminal_code, status, registered_at)
-           VALUES ('dev-demo-1', 'org-1791213425877-466xxh', 'POS Counter 01 - Windows NSIS', 'DESKTOP_POS', 'TERM-01', 'ACTIVE', datetime('now', '-2 days'))`
-        );
-        db.run(
-          `INSERT OR IGNORE INTO registered_devices
-            (id, organization_id, device_name, device_type, terminal_code, status, registered_at)
-           VALUES ('dev-demo-2', 'org-1791198421045-992ccd', 'Front Cashier - Main Terminal', 'DESKTOP_POS', 'TERM-02', 'ACTIVE', datetime('now', '-5 days'))`
-        );
-
-        saveLocalDbState();
-      }
-    } catch (e) {
-      console.error('Failed to seed default demo registrations:', e);
-    }
+      // Purge any legacy demo registrations to ensure clean production database
+      db.run("DELETE FROM customer_registrations WHERE id LIKE 'reg-demo-%'");
+      db.run("DELETE FROM subscriptions WHERE id LIKE 'sub-demo-%'");
+      db.run("DELETE FROM registered_devices WHERE id LIKE 'dev-demo-%'");
+      db.run("DELETE FROM organizations WHERE id IN ('org-1791213425877-466xxh', 'org-1791204899120-881bba', 'org-1791198421045-992ccd')");
+    } catch {}
   }
 
   static listAllRegistrations(): Record<string, unknown>[] {
@@ -407,6 +341,7 @@ export class CustomerRegistrationService {
       FROM customer_registrations cr
       LEFT JOIN subscriptions s ON s.organization_id = cr.organization_id
       LEFT JOIN subscription_plans p ON p.id = s.plan_id
+      WHERE cr.id NOT LIKE 'reg-demo-%'
       ORDER BY cr.created_at DESC
     `);
     const results: Record<string, unknown>[] = [];
@@ -573,6 +508,8 @@ export class CustomerRegistrationService {
     phone: string;
     email: string;
     country?: string;
+    password?: string;
+    username?: string;
   }): Promise<{ trialId: string; businessName: string; expiryDate: string; organizationId: string }> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
@@ -582,17 +519,29 @@ export class CustomerRegistrationService {
 
     const regId = `reg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const orgId = `org-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const tempPasswordHash = bcrypt.hashSync(`Trial@${trialId}`, 10);
+    const userPass = payload.password || `Trial@${trialId}`;
+    const passwordHash = bcrypt.hashSync(userPass, 10);
+    const chosenUsername = payload.username || payload.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'admin';
 
     // 1. Insert customer registration with TRIALING status
     db.run(
       `INSERT INTO customer_registrations
         (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'FREE_TRIAL', 'MONTHLY', 'TRIALING', ?, ?, ?)`,
-      [regId, orgId, payload.email.toLowerCase().trim(), payload.fullName, payload.businessName, payload.phone || null, payload.country || 'Sri Lanka', tempPasswordHash, trialId, now, now]
+      [regId, orgId, payload.email.toLowerCase().trim(), payload.fullName, payload.businessName, payload.phone || null, payload.country || 'Sri Lanka', passwordHash, trialId, now, now]
     );
 
-    // 2. Insert or update organization
+    // 2. Register merchant POS user in local users table
+    try {
+      const userId = `usr-${Date.now()}`;
+      db.run(
+        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, status, is_active, created_at, updated_at)
+         VALUES (?, 'biz-001', 'branch-001', 'role-admin', ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+        [userId, chosenUsername, payload.email.toLowerCase().trim(), passwordHash, payload.fullName, payload.phone || null, now, now]
+      );
+    } catch {}
+
+    // 3. Insert or update organization
     const orgCode = this.generateOrgCode(payload.businessName);
     db.run(
       `INSERT OR REPLACE INTO organizations (id, name, code, email, phone, timezone, created_at, updated_at)
@@ -600,10 +549,10 @@ export class CustomerRegistrationService {
       [orgId, payload.businessName, orgCode, payload.email.toLowerCase().trim(), payload.phone || null, now, now]
     );
 
-    // 3. Ensure plan exists
+    // 4. Ensure plan exists
     this.ensurePlanExists(db, 'FREE_TRIAL', PLAN_CATALOG.FREE_TRIAL, now);
 
-    // 4. Create subscription
+    // 5. Create subscription
     const planRow = db.prepare(`SELECT id FROM subscription_plans WHERE code = 'FREE_TRIAL' LIMIT 1`);
     let planId = '';
     if (planRow.step()) planId = (planRow.getAsObject().id as string) || '';

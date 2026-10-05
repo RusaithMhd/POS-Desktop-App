@@ -201,6 +201,7 @@ function RegisterForm() {
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
           country: country || 'Sri Lanka',
+          password: password,
         });
         window.location.href = `/download-trial?trialId=${trialRes.trialId}&business=${encodeURIComponent(trialRes.businessName)}&expiry=${encodeURIComponent(trialRes.expiryDate)}`;
         return;

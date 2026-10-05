@@ -173,19 +173,7 @@ export function seedInitialData(db: Database) {
     ('role-auditor', 'p-audit-view');
   `);
 
-  // 3. System Users
-  db.run(`
-    INSERT INTO users (id, business_id, branch_id, role_id, username, email, password_hash, pin_hash, full_name, phone, status, is_active, created_at, updated_at) VALUES
-    ('usr-superadmin', 'biz-001', 'branch-001', 'role-superadmin', 'superadmin', 'owner@triwynpos.lk', '${superPassHash}', '${superPinHash}', 'Arthur Pendelton (Owner)', '+94 77 000 0000', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-admin', 'biz-001', 'branch-001', 'role-admin', 'admin', 'admin@triwynpos.lk', '${adminPassHash}', '${adminPinHash}', 'Alexander Pierce (Manager)', '+94 77 123 4567', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-cashier', 'biz-001', 'branch-001', 'role-cashier', 'cashier', 'cashier@triwynpos.lk', '${cashierPassHash}', '${cashierPinHash}', 'David Miller (Cashier)', '+94 77 345 6789', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-kitchen', 'biz-001', 'branch-001', 'role-kitchen', 'kitchen', 'kitchen@triwynpos.lk', '${kitchenPassHash}', '${kitchenPinHash}', 'Chef Gordon (Kitchen)', '+94 77 999 8888', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-inventory', 'biz-001', 'branch-001', 'role-inventory', 'inventory', 'inventory@triwynpos.lk', '${invPassHash}', '${invPinHash}', 'Marcus Brody (Stock)', '+94 77 456 7890', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-accountant', 'biz-001', 'branch-001', 'role-accountant', 'accountant', 'accountant@triwynpos.lk', '${accPassHash}', '${accPinHash}', 'Rachel Green (Finance)', '+94 77 567 8901', 'ACTIVE', 1, '${now}', '${now}'),
-    ('usr-auditor', 'biz-001', 'branch-001', 'role-auditor', 'auditor', 'auditor@triwynpos.lk', '${audPassHash}', '${audPinHash}', 'Inspector Clouseau (Auditor)', '+94 77 888 7777', 'ACTIVE', 1, '${now}', '${now}');
-  `);
-
-  // 4. Default Approval Rules
+  // 3. Default Approval Rules
   db.run(`
     INSERT INTO approval_rules (id, business_id, rule_type, min_value, max_value, required_role, created_at, updated_at) VALUES
     ('rule-disc-cashier', 'biz-001', 'DISCOUNT_PERCENT', 0, 10, 'CASHIER', '${now}', '${now}'),
@@ -230,58 +218,19 @@ export function seedInitialData(db: Database) {
     ('disc-flat500', 'biz-001', 'Flat Rs. 500 Off', 'FLAT500', 'FIXED', 500.0, 5000.0, 1);
   `);
 
-  // 6. Products List in LKR (Sri Lankan Rupees)
-  const productsList = [
-    { id: 'prod-001', cat: 'cat-bev', name: 'Espresso Coffee Beans 1kg', sku: 'SKU-BEV-001', barcode: '890100010001', cost: 3500.00, price: 6500.00, stock: 45, unit: 'unit-kg' },
-    { id: 'prod-002', cat: 'cat-bev', name: 'Organic Almond Milk 1L', sku: 'SKU-BEV-002', barcode: '890100010002', cost: 450.00, price: 850.00, stock: 120, unit: 'unit-ltr' },
-    { id: 'prod-003', cat: 'cat-bev', name: 'Sparkling Mineral Water 500ml', sku: 'SKU-BEV-003', barcode: '890100010003', cost: 150.00, price: 350.00, stock: 200, unit: 'unit-pcs' },
-    { id: 'prod-004', cat: 'cat-bakery', name: 'Artisan Butter Croissant', sku: 'SKU-BAK-001', barcode: '890100010004', cost: 200.00, price: 450.00, stock: 35, unit: 'unit-pcs' },
-    { id: 'prod-005', cat: 'cat-bakery', name: 'Chocolate Chip Cookie 6-Pack', sku: 'SKU-BAK-002', barcode: '890100010005', cost: 400.00, price: 950.00, stock: 50, unit: 'unit-pack' },
-    { id: 'prod-006', cat: 'cat-dairy', name: 'Greek Yogurt Vanilla 500g', sku: 'SKU-DAI-001', barcode: '890100010006', cost: 500.00, price: 1150.00, stock: 60, unit: 'unit-pcs' },
-    { id: 'prod-007', cat: 'cat-dairy', name: 'Aged Cheddar Cheese Slice 200g', sku: 'SKU-DAI-002', barcode: '890100010007', cost: 800.00, price: 1650.00, stock: 40, unit: 'unit-pcs' },
-    { id: 'prod-008', cat: 'cat-elec', name: 'USB-C Fast Charging Cable 2m', sku: 'SKU-ELE-001', barcode: '890100010008', cost: 900.00, price: 2200.00, stock: 80, unit: 'unit-pcs' },
-    { id: 'prod-009', cat: 'cat-elec', name: 'Wireless Bluetooth Earbuds Pro', sku: 'SKU-ELE-002', barcode: '890100010009', cost: 4500.00, price: 12500.00, stock: 25, unit: 'unit-box' },
-    { id: 'prod-010', cat: 'cat-house', name: 'Eco Bamboo Facial Tissues 3-Pack', sku: 'SKU-HOU-001', barcode: '890100010010', cost: 350.00, price: 750.00, stock: 90, unit: 'unit-pack' },
-    { id: 'prod-011', cat: 'cat-house', name: 'Antibacterial Hand Sanitizer 250ml', sku: 'SKU-HOU-002', barcode: '890100010011', cost: 250.00, price: 550.00, stock: 150, unit: 'unit-pcs' },
-    { id: 'prod-012', cat: 'cat-bev', name: 'Fresh Cold Pressed Orange Juice 330ml', sku: 'SKU-BEV-004', barcode: '890100010012', cost: 300.00, price: 650.00, stock: 4, unit: 'unit-pcs' },
-  ];
-
-  for (const p of productsList) {
-    db.run(`
-      INSERT INTO products (id, business_id, category_id, unit_id, name, sku, barcode, brand, description, cost_price, selling_price, tax_rate, stock_quantity, min_stock_level, reorder_level, track_inventory, is_active, created_at, updated_at)
-      VALUES ('${p.id}', 'biz-001', '${p.cat}', '${p.unit}', '${p.name}', '${p.sku}', '${p.barcode}', 'TRIWYN Brand', '${p.name} premium quality product', ${p.cost}, ${p.price}, 8.0, ${p.stock}, 10, 15, 1, 1, '${now}', '${now}');
-
-      INSERT INTO product_barcodes (id, product_id, barcode, is_primary)
-      VALUES ('bc-${p.id}', '${p.id}', '${p.barcode}', 1);
-
-      INSERT INTO inventory (id, branch_id, product_id, quantity, reserved_quantity, updated_at)
-      VALUES ('inv-${p.id}', 'branch-001', '${p.id}', ${p.stock}, 0, '${now}');
-
-      INSERT INTO inventory_movements (id, branch_id, product_id, movement_type, reference_type, reference_id, quantity_change, previous_quantity, new_quantity, user_id, reason, created_at)
-      VALUES ('mov-open-${p.id}', 'branch-001', '${p.id}', 'OPENING_STOCK', 'initialization', 'init-seed', ${p.stock}, 0, ${p.stock}, 'usr-admin', 'Initial system opening stock seed', '${now}');
-    `);
-  }
-
-  // 7. Customers & Cash Register Float in LKR
+  // 6. Default Walk-in Customer & Cash Register Float
   db.run(`
     INSERT INTO customers (id, business_id, name, phone, email, credit_limit, current_credit, loyalty_points, created_at, updated_at) VALUES
-    ('cust-001', 'biz-001', 'Walk-in Customer', '+94 00 000 0000', 'walkin@triwynpos.lk', 0, 0, 0, '${now}', '${now}'),
-    ('cust-002', 'biz-001', 'Eleanor Vance', '+94 77 234 5678', 'eleanor.vance@example.com', 50000.0, 4500.0, 120, '${now}', '${now}'),
-    ('cust-003', 'biz-001', 'Marcus Sterling', '+94 77 876 5432', 'marcus.s@example.com', 100000.0, 0.0, 350, '${now}', '${now}');
+    ('cust-001', 'biz-001', 'Walk-in Customer', '+94 00 000 0000', 'walkin@pos.internal', 0, 0, 0, '${now}', '${now}');
 
     INSERT INTO cash_registers (id, terminal_id, name, opening_balance, current_balance, is_open, updated_at)
-    VALUES ('reg-001', 'term-001', 'Register Terminal 01', 20000.0, 20000.0, 0, '${now}');
+    VALUES ('reg-001', 'term-001', 'Register Terminal 01', 0.0, 0.0, 0, '${now}');
 
     INSERT INTO settings (id, business_id, branch_id, terminal_id, key, value, updated_at) VALUES
     ('set-001', 'biz-001', 'branch-001', 'term-001', 'receipt_header', '"TRIWYN STORE COLOMBO\\n100 Commercial Plaza, Colombo 03\\nTel: +94 11 234 5678"', '${now}'),
     ('set-002', 'biz-001', 'branch-001', 'term-001', 'receipt_footer', '"Thank you for shopping with TRIWYN POS!\\nPlease come again."', '${now}'),
     ('set-003', 'biz-001', 'branch-001', 'term-001', 'auto_print_receipt', 'true', '${now}'),
     ('set-004', 'biz-001', 'branch-001', 'term-001', 'sound_effects', 'true', '${now}');
-
-    INSERT OR IGNORE INTO suppliers (id, business_id, code, name, company_name, contact_person, phone, email, address, tax_number, payment_terms, credit_limit, opening_balance, current_outstanding, status, notes, created_at, updated_at) VALUES
-    ('sup-001', 'biz-001', 'SUP-0001', 'ABC Distributors Ltd', 'ABC Holdings PLC', 'Mohamed Rishad', '+94 77 123 4567', 'orders@abcdistributors.lk', '45 Industrial Zone, Colombo 10', 'VAT-998877', '30 Days', 500000.0, 0.0, 0.0, 'ACTIVE', 'Primary FMCG Supplier', '${now}', '${now}'),
-    ('sup-002', 'biz-001', 'SUP-0002', 'Ceylon Wholesale Traders', 'Ceylon Traders Ltd', 'Samantha Perera', '+94 71 987 6543', 'sales@ceylontraders.lk', '12 Main Street, Pettah, Colombo 11', 'VAT-554433', '15 Days', 300000.0, 0.0, 0.0, 'ACTIVE', 'Beverage & Dairy Supplier', '${now}', '${now}'),
-    ('sup-003', 'biz-001', 'SUP-0003', 'Lanka Imports & Logistics', 'Lanka Imports Pvt Ltd', 'Kavinda Silva', '+94 11 456 7890', 'info@lankaimports.lk', '88 Port Road, Colombo 13', 'VAT-112233', '30 Days', 750000.0, 0.0, 0.0, 'ACTIVE', 'Electronics & Household Imports', '${now}', '${now}');
   `);
 }
 
@@ -344,53 +293,6 @@ export function ensurePermissionsMigrated(db: Database) {
       ('role-cashier', 'p-shift-open'),
       ('role-cashier', 'p-shift-close');
     `);
-
-    const checkSupp = db.prepare("SELECT count(*) as cnt FROM suppliers");
-    let suppCount = 0;
-    if (checkSupp.step()) {
-      suppCount = Number(checkSupp.getAsObject().cnt || 0);
-    }
-    checkSupp.free();
-
-    if (suppCount === 0) {
-      db.run(`
-        INSERT OR IGNORE INTO suppliers (id, business_id, code, name, company_name, contact_person, phone, email, address, tax_number, payment_terms, credit_limit, opening_balance, current_outstanding, status, notes, created_at, updated_at) VALUES
-        ('sup-001', 'biz-001', 'SUP-0001', 'ABC Distributors Ltd', 'ABC Holdings PLC', 'Mohamed Rishad', '+94 77 123 4567', 'orders@abcdistributors.lk', '45 Industrial Zone, Colombo 10', 'VAT-998877', '30 Days', 500000.0, 0.0, 0.0, 'ACTIVE', 'Primary FMCG Supplier', '${now}', '${now}'),
-        ('sup-002', 'biz-001', 'SUP-0002', 'Ceylon Wholesale Traders', 'Ceylon Traders Ltd', 'Samantha Perera', '+94 71 987 6543', 'sales@ceylontraders.lk', '12 Main Street, Pettah, Colombo 11', 'VAT-554433', '15 Days', 300000.0, 0.0, 0.0, 'ACTIVE', 'Beverage & Dairy Supplier', '${now}', '${now}'),
-        ('sup-003', 'biz-001', 'SUP-0003', 'Lanka Imports & Logistics', 'Lanka Imports Pvt Ltd', 'Kavinda Silva', '+94 11 456 7890', 'info@lankaimports.lk', '88 Port Road, Colombo 13', 'VAT-112233', '30 Days', 750000.0, 0.0, 0.0, 'ACTIVE', 'Electronics & Household Imports', '${now}', '${now}');
-      `);
-    }
-
-    const checkProd = db.prepare("SELECT count(*) as cnt FROM products");
-    let prodCount = 0;
-    if (checkProd.step()) {
-      prodCount = Number(checkProd.getAsObject().cnt || 0);
-    }
-    checkProd.free();
-
-    if (prodCount === 0) {
-      const productsList = [
-        { id: 'prod-001', cat: 'cat-bev', name: 'Espresso Coffee Beans 1kg', sku: 'SKU-BEV-001', barcode: '890100010001', cost: 3500.00, price: 6500.00, stock: 45, unit: 'unit-kg' },
-        { id: 'prod-002', cat: 'cat-bev', name: 'Organic Almond Milk 1L', sku: 'SKU-BEV-002', barcode: '890100010002', cost: 450.00, price: 850.00, stock: 120, unit: 'unit-ltr' },
-        { id: 'prod-003', cat: 'cat-bev', name: 'Sparkling Mineral Water 500ml', sku: 'SKU-BEV-003', barcode: '890100010003', cost: 150.00, price: 350.00, stock: 200, unit: 'unit-pcs' },
-        { id: 'prod-004', cat: 'cat-bakery', name: 'Artisan Butter Croissant', sku: 'SKU-BAK-001', barcode: '890100010004', cost: 200.00, price: 450.00, stock: 35, unit: 'unit-pcs' },
-        { id: 'prod-005', cat: 'cat-bakery', name: 'Chocolate Chip Cookie 6-Pack', sku: 'SKU-BAK-002', barcode: '890100010005', cost: 400.00, price: 950.00, stock: 50, unit: 'unit-pack' },
-        { id: 'prod-006', cat: 'cat-dairy', name: 'Greek Yogurt Vanilla 500g', sku: 'SKU-DAI-001', barcode: '890100010006', cost: 500.00, price: 1150.00, stock: 60, unit: 'unit-pcs' },
-        { id: 'prod-007', cat: 'cat-dairy', name: 'Aged Cheddar Cheese Slice 200g', sku: 'SKU-DAI-002', barcode: '890100010007', cost: 800.00, price: 1650.00, stock: 40, unit: 'unit-pcs' },
-        { id: 'prod-008', cat: 'cat-elec', name: 'USB-C Fast Charging Cable 2m', sku: 'SKU-ELE-001', barcode: '890100010008', cost: 900.00, price: 2200.00, stock: 80, unit: 'unit-pcs' },
-        { id: 'prod-009', cat: 'cat-elec', name: 'Wireless Bluetooth Earbuds Pro', sku: 'SKU-ELE-002', barcode: '890100010009', cost: 4500.00, price: 12500.00, stock: 25, unit: 'unit-box' },
-        { id: 'prod-010', cat: 'cat-house', name: 'Eco Bamboo Facial Tissues 3-Pack', sku: 'SKU-HOU-001', barcode: '890100010010', cost: 350.00, price: 750.00, stock: 90, unit: 'unit-pack' },
-        { id: 'prod-011', cat: 'cat-house', name: 'Antibacterial Hand Sanitizer 250ml', sku: 'SKU-HOU-002', barcode: '890100010011', cost: 250.00, price: 550.00, stock: 150, unit: 'unit-pcs' },
-        { id: 'prod-012', cat: 'cat-bev', name: 'Fresh Cold Pressed Orange Juice 330ml', sku: 'SKU-BEV-004', barcode: '890100010012', cost: 300.00, price: 650.00, stock: 4, unit: 'unit-pcs' },
-      ];
-
-      for (const p of productsList) {
-        db.run(`
-          INSERT OR IGNORE INTO products (id, business_id, category_id, unit_id, name, sku, barcode, brand, description, cost_price, selling_price, tax_rate, stock_quantity, min_stock_level, reorder_level, track_inventory, is_active, created_at, updated_at)
-          VALUES ('${p.id}', 'biz-001', '${p.cat}', '${p.unit}', '${p.name}', '${p.sku}', '${p.barcode}', 'TRIWYN Brand', '${p.name} premium quality product', ${p.cost}, ${p.price}, 8.0, ${p.stock}, 10, 15, 1, 1, '${now}', '${now}');
-        `);
-      }
-    }
 
     seedAccountingData(db);
   } catch (err) {

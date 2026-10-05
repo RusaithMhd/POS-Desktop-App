@@ -243,8 +243,10 @@ export default function DevicesManagementPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredDevices.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-500">
-                        No registered devices found.
+                      <td colSpan={7} className="py-12 text-center text-slate-500 space-y-2">
+                        <Monitor className="h-8 w-8 text-purple-400/80 mx-auto" />
+                        <div className="text-sm font-black text-white uppercase tracking-wide">NO REGISTERED DEVICES YET</div>
+                        <div className="text-xs text-slate-400">Authorized desktop POS and mobile devices will appear here.</div>
                       </td>
                     </tr>
                   ) : (

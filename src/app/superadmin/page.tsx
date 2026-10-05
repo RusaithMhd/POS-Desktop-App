@@ -8,7 +8,7 @@ import {
   RefreshCw, Search, ArrowUpRight, Ban, PlusCircle, Check,
   Zap, MessageCircle, Copy, Key, Sparkles, Volume2, VolumeX,
   ExternalLink, Eye, Calendar, DollarSign, Activity, Bell,
-  Award, Download, Laptop, FileText, Filter
+  Award, Download, Laptop, FileText, Filter, Globe
 } from 'lucide-react';
 import { AdminAuthGuard, AdminHeader } from '@/components/auth/AdminAuthGuard';
 import { AdminAuthService } from '@/services/auth/AdminAuthService';
@@ -512,15 +512,6 @@ export default function SuperAdminDashboard() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => AdminNotificationService.triggerTestAlert()}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                title="Fire a realistic real-time trial registration event"
-              >
-                <Sparkles className="h-3 w-3" />
-                <span>Test Alert Sound</span>
-              </button>
-
-              <button
                 onClick={handleExportCsv}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
                 title="Export registered customers to CSV spreadsheet"
@@ -793,7 +784,34 @@ export default function SuperAdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredRegistrations.length === 0 ? (
+                  {registrations.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-16 text-center text-slate-400">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="h-14 w-14 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center mx-auto text-amber-400">
+                            <Building2 className="h-7 w-7 opacity-80" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-base font-black text-white tracking-wide uppercase">NO CUSTOMERS YET</div>
+                            <p className="text-xs text-slate-400">
+                              Customers who register for the free trial will appear here.
+                            </p>
+                          </div>
+                          <div className="pt-1">
+                            <a
+                              href="/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all"
+                            >
+                              <Globe className="h-3.5 w-3.5" />
+                              <span>VIEW WEBSITE</span>
+                            </a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredRegistrations.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-500 space-y-1">
                         <Building2 className="h-8 w-8 mx-auto text-slate-700" />

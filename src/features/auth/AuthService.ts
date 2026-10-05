@@ -17,12 +17,12 @@ const SESSION_KEY = 'triwyn_pos_active_session_v1';
 export class AuthService {
   static async loginWithPassword(username: string, password: string): Promise<UserSession> {
     const db = getRawSqlDb();
-    const stmt = db.prepare('SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = :u AND u.is_active = 1 LIMIT 1');
+    const stmt = db.prepare('SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE (u.username = :u OR u.email = :u) AND u.is_active = 1 LIMIT 1');
     stmt.bind({ ':u': username.trim().toLowerCase() });
 
     if (!stmt.step()) {
       stmt.free();
-      throw new Error('Invalid username or inactive user account.');
+      throw new Error('Invalid username/email or inactive user account.');
     }
 
     const u = stmt.getAsObject();

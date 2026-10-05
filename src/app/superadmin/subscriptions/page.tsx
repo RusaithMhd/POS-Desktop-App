@@ -249,10 +249,10 @@ export default function SubscriptionsApprovalPage() {
             </div>
 
             {pending.length === 0 ? (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center text-slate-500">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                <p className="text-sm font-bold text-slate-300">Queue is clear</p>
-                <p className="text-xs text-slate-500 mt-0.5">All customer accounts have been processed.</p>
+              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-10 text-center text-slate-500 space-y-2">
+                <Clock className="h-8 w-8 text-amber-500/80 mx-auto" />
+                <p className="text-sm font-black text-white uppercase tracking-wide">NO PENDING ACTIVATIONS</p>
+                <p className="text-xs text-slate-400">Customers awaiting subscription approval or trial activation will appear here.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -323,8 +323,10 @@ export default function SubscriptionsApprovalPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {active.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-500">
-                        No active paid accounts yet.
+                      <td colSpan={5} className="py-12 text-center text-slate-500 space-y-2">
+                        <CreditCard className="h-8 w-8 text-emerald-500/80 mx-auto" />
+                        <div className="text-sm font-black text-white uppercase tracking-wide">NO ACTIVE SUBSCRIPTIONS</div>
+                        <div className="text-xs text-slate-400">Activated customer subscriptions will appear here.</div>
                       </td>
                     </tr>
                   ) : (

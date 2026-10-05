@@ -98,8 +98,10 @@ export default function AdminAuditLogsPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500">
-                        No admin audit records found.
+                      <td colSpan={5} className="py-12 text-center text-slate-500 space-y-2">
+                        <Shield className="h-8 w-8 text-amber-500/80 mx-auto" />
+                        <div className="text-sm font-black text-white uppercase tracking-wide">NO AUDIT LOGS YET</div>
+                        <div className="text-xs text-slate-400">Administrative and security events will be recorded here.</div>
                       </td>
                     </tr>
                   ) : (

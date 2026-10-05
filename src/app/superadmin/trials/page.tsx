@@ -126,8 +126,10 @@ export default function TrialsManagementPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.length === 0 ? (
-              <div className="col-span-full py-12 text-center text-slate-500 bg-slate-900/40 border border-slate-800/80 rounded-2xl">
-                No active trials found.
+              <div className="col-span-full py-12 text-center text-slate-500 bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-2">
+                <Clock className="h-8 w-8 text-cyan-400/80 mx-auto" />
+                <div className="text-sm font-black text-white uppercase tracking-wide">NO TRIAL CUSTOMERS YET</div>
+                <div className="text-xs text-slate-400">Customers who register for the free trial will appear here.</div>
               </div>
             ) : (
               filtered.map((item) => {

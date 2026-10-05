@@ -83,32 +83,3 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_registrations;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.registered_devices;
 
--- ============================================================================
--- INITIAL DEMO SEED DATA
--- ============================================================================
-INSERT INTO public.organizations (id, name, code, email, phone)
-VALUES 
-    ('org-1791213425877-466xxh', 'TFTFTF', 'TFT-1001', 'chlifrost@gmail.com', '0770802365'),
-    ('org-1791204899120-881bba', 'Rusaith Retail', 'RUS-2002', 'chlifrost.tl@gmail.com', '0750802353'),
-    ('org-1791198421045-992ccd', 'Apex Commercial', 'APX-3003', 'rusairzeck72@gmail.com', '0770802365')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.customer_registrations (id, organization_id, email, full_name, business_name, phone, selected_plan_code, billing_cycle, status)
-VALUES
-    ('reg-demo-1', 'org-1791213425877-466xxh', 'chlifrost@gmail.com', 'Rusaith Muhammathu', 'TFTFTF', '0770802365', 'FREE_TRIAL', 'monthly', 'ACTIVE'),
-    ('reg-demo-2', 'org-1791204899120-881bba', 'chlifrost.tl@gmail.com', 'Rusaith Muhammathu', 'Rusaith Retail', '0750802353', 'FREE_TRIAL', 'monthly', 'TRIALING'),
-    ('reg-demo-3', 'org-1791198421045-992ccd', 'rusairzeck72@gmail.com', 'Muhammathu Rusaith', 'Apex Commercial', '0770802365', 'STARTER', 'yearly', 'ACTIVE')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.subscriptions (id, organization_id, status, billing_cycle, trial_ends_at)
-VALUES
-    ('sub-demo-1', 'org-1791213425877-466xxh', 'ACTIVE', 'monthly', NOW() + INTERVAL '12 days'),
-    ('sub-demo-2', 'org-1791204899120-881bba', 'TRIALING', 'monthly', NOW() + INTERVAL '14 days'),
-    ('sub-demo-3', 'org-1791198421045-992ccd', 'ACTIVE', 'yearly', NOW() + INTERVAL '355 days')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.registered_devices (id, organization_id, device_name, device_type, terminal_code, status)
-VALUES
-    ('dev-demo-1', 'org-1791213425877-466xxh', 'POS Counter 01 - Windows NSIS', 'DESKTOP_POS', 'TERM-01', 'ACTIVE'),
-    ('dev-demo-2', 'org-1791198421045-992ccd', 'Front Cashier - Main Terminal', 'DESKTOP_POS', 'TERM-02', 'ACTIVE')
-ON CONFLICT (id) DO NOTHING;

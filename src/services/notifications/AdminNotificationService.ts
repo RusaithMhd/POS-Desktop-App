@@ -51,29 +51,7 @@ class AdminNotificationServiceImpl {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) {
-        // Seed default initial notifications so dashboard feels alive right away
-        const initialSeed: AdminNotification[] = [
-          {
-            id: 'notif-init-1',
-            type: 'TRIAL_REGISTERED',
-            title: '14-Day Free Trial Registered',
-            message: 'A new retail merchant registered for a 14-day evaluation license.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-            read: false,
-            priority: 'MEDIUM',
-            metadata: { businessName: 'Rusaith Retail' },
-          },
-          {
-            id: 'notif-init-2',
-            type: 'SYSTEM_ALERT',
-            title: 'Local Engine Live',
-            message: 'Super Admin license monitoring active with 0 latency.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-            read: true,
-            priority: 'LOW',
-          },
-        ];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(initialSeed));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
       }
     } catch {
       // Storage unavailable
@@ -122,22 +100,6 @@ class AdminNotificationServiceImpl {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch {}
     this.notifyListeners();
-  }
-
-  public triggerTestAlert(): AdminNotification {
-    return this.addNotification({
-      type: 'TRIAL_REGISTERED',
-      title: 'New Evaluation Trial Started',
-      message: 'Apex Supermarket (Colombo) registered for a 14-day evaluation license.',
-      priority: 'HIGH',
-      metadata: {
-        businessName: 'Apex Supermarket',
-        orgId: `org-test-${Math.floor(1000 + Math.random() * 9000)}`,
-        email: 'sales@apexsupermarket.lk',
-        planCode: 'FREE_TRIAL',
-        daysRemaining: 14,
-      },
-    });
   }
 
   public addNotification(notif: Omit<AdminNotification, 'id' | 'timestamp' | 'read'>): AdminNotification {

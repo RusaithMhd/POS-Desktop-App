@@ -104,11 +104,6 @@ export function getRawSqlDb(): Database {
   return rawDb;
 }
 
-export function setTestRawSqlDb(testDb: Database) {
-  rawDb = testDb;
-  ensureOpeningBatchesExist(testDb);
-}
-
 function saveDatabaseToStorage(db: Database) {
   try {
     const binary = db.export();
@@ -931,6 +926,11 @@ function createTables(db: Database) {
 
 export function ensureOpeningBatchesExist(db: Database) {
   try {
+    const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'");
+    const hasProducts = tableCheck.step();
+    tableCheck.free();
+    if (!hasProducts) return;
+
     const now = new Date().toISOString();
     const prodStmt = db.prepare('SELECT id, name, sku, cost_price, stock_quantity, created_at FROM products WHERE stock_quantity > 0');
     const prodsToMigrate: Array<{ id: string; name: string; sku: string; costPrice: number; stockQuantity: number; createdAt: string }> = [];

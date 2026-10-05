@@ -182,7 +182,30 @@ export default function CustomersManagementPage() {
 
           {/* Customer Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.length === 0 ? (
+            {registrations.length === 0 ? (
+              <div className="col-span-full py-20 text-center text-slate-400 bg-slate-900/40 border border-slate-800/80 rounded-3xl space-y-4">
+                <div className="h-16 w-16 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center mx-auto text-amber-400">
+                  <Building2 className="h-8 w-8 opacity-80" />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-base font-black text-white tracking-wide uppercase">NO CUSTOMERS YET</div>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Customers who register for the free trial will appear here.
+                  </p>
+                </div>
+                <div>
+                  <a
+                    href="/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>VIEW WEBSITE</span>
+                  </a>
+                </div>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-500 bg-slate-900/40 border border-slate-800/80 rounded-3xl space-y-2">
                 <Building2 className="h-10 w-10 text-slate-700 mx-auto" />
                 <div className="font-bold text-slate-400 text-sm">No organizations found</div>

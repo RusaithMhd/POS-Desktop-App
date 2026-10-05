@@ -54,9 +54,6 @@ export function RealtimeNotificationManager({
     if (next) AdminNotificationService.playChime('HIGH');
   };
 
-  const handleTestAlert = () => {
-    AdminNotificationService.triggerTestAlert();
-  };
 
   const filtered = notifications.filter((n) => {
     if (searchQuery.trim()) {
@@ -151,15 +148,6 @@ export function RealtimeNotificationManager({
                 className="w-full h-9 pl-9 pr-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500"
               />
             </div>
-
-            <button
-              onClick={handleTestAlert}
-              className="px-3 h-9 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Send a sample trial event to test notifications"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Test Alert</span>
-            </button>
           </div>
 
           {/* Category Tabs */}
