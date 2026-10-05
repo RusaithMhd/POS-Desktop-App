@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRIWYN POS — Windows Installation & Setup Guide</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-glow: rgba(16, 185, 129, 0.2);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #06b6d4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding: 40px 20px; }
+    .container { max-width: 860px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 40px; padding-bottom: 25px; border-bottom: 1px solid var(--card-border); }
+    .badge { display: inline-block; background: var(--primary-glow); color: var(--primary); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(16, 185, 129, 0.3); margin-bottom: 12px; }
+    h1 { font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; margin-bottom: 8px; }
+    p.subtitle { color: var(--text-muted); font-size: 15px; }
+    .step-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 24px; margin-bottom: 20px; transition: transform 0.2s ease, border-color 0.2s ease; }
+    .step-card:hover { border-color: rgba(16, 185, 129, 0.4); }
+    .step-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .step-num { width: 34px; height: 34px; border-radius: 10px; background: var(--primary-glow); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; border: 1px solid rgba(16, 185, 129, 0.3); flex-shrink: 0; }
+    .step-title { font-size: 18px; font-weight: 800; color: #ffffff; }
+    .step-body { color: #d1d5db; font-size: 14px; margin-left: 48px; }
+    .step-body p { margin-bottom: 10px; }
+    .code-box { background: #030712; border: 1px solid #1f2937; border-radius: 8px; padding: 12px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; color: #a7f3d0; margin: 12px 0; }
+    .tip-box { background: rgba(6, 182, 212, 0.1); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #cffafe; margin: 12px 0; }
+    .warning-box { background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #fef3c7; margin: 12px 0; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: #000; font-weight: 800; padding: 10px 18px; border-radius: 10px; text-decoration: none; font-size: 13px; transition: background 0.2s ease; }
+    .btn:hover { background: var(--primary-hover); }
+    footer { text-align: center; margin-top: 50px; padding-top: 30px; border-top: 1px solid var(--card-border); color: var(--text-muted); font-size: 13px; }
+    .hotlines { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
+    .hotline-btn { background: #1f2937; color: #10b981; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; border: 1px solid rgba(16, 185, 129, 0.2); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">Official Setup Documentation</div>
+      <h1>TRIWYN POS — Windows Installation Guide</h1>
+      <p class="subtitle">Complete step-by-step setup manual for Windows 10 &amp; Windows 11 (64-bit)</p>
+    </header>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">Minimum System Requirements</div>
+      </div>
+      <div class="step-body">
+        <p>Ensure your cashier terminal or computer meets these recommended specifications:</p>
+        <ul style="padding-left: 20px; line-height: 1.8;">
+          <li><strong>Operating System:</strong> Windows 10 or Windows 11 (64-bit Edition)</li>
+          <li><strong>Processor:</strong> Intel Core i3 / AMD Ryzen 3 or higher</li>
+          <li><strong>Memory:</strong> 4 GB RAM minimum (8 GB recommended for busy retail stores)</li>
+          <li><strong>Storage:</strong> At least 1 GB free SSD or HDD space</li>
+          <li><strong>Display:</strong> 1366 × 768 or 1920 × 1080 resolution</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">Download &amp; Extract the Setup Package</div>
+      </div>
+      <div class="step-body">
+        <p>If you downloaded the complete ZIP package (<code>TRIWYN-POS-Complete-Setup-Package.zip</code>), right click the downloaded archive and select <strong>"Extract All..."</strong>.</p>
+        <div class="code-box">Files included in package:<br>
+├── POS-Setup.exe (Windows NSIS Setup Wizard)<br>
+├── Install_TRIWYN_POS.bat (Automated 1-Click Installer)<br>
+├── Installation_Guide.html (This document)<br>
+├── Hardware_and_Thermal_Printer_Setup.txt<br>
+├── Quick_Start_Guide.txt<br>
+└── WhatsApp_Activation_and_Support.txt</div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">Execute POS-Setup.exe</div>
+      </div>
+      <div class="step-body">
+        <p>Double click <strong>POS-Setup.exe</strong> or run <strong>Install_TRIWYN_POS.bat</strong> as administrator.</p>
+        <div class="warning-box">
+          <strong>Windows SmartScreen Notice:</strong><br>
+          If Windows displays "Windows protected your PC", click <u>More info</u>, then click <u>Run anyway</u> to permit the installation.
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">Follow the Installation Wizard</div>
+      </div>
+      <div class="step-body">
+        <p>The TRIWYN POS installer will prompt you:</p>
+        <ol style="padding-left: 20px; line-height: 1.8;">
+          <li>Accept the software terms &amp; conditions.</li>
+          <li>Choose the destination folder (default is recommended).</li>
+          <li>Ensure <strong>"Create a desktop shortcut"</strong> is checked.</li>
+          <li>Click <strong>Install</strong>. All files, offline SQLite databases, and native printer drivers will be copied.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">5</div>
+        <div class="step-title">Launch TRIWYN POS &amp; Start Selling</div>
+      </div>
+      <div class="step-body">
+        <p>Double click the <strong>TRIWYN POS</strong> icon on your desktop. The application launches immediately into the high-performance offline terminal interface.</p>
+        <div class="tip-box">
+          <strong>Offline Protection:</strong> TRIWYN POS runs completely locally. Internet loss will never halt your checkout line.
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">6</div>
+        <div class="step-title">Thermal Receipt Printer Configuration</div>
+      </div>
+      <div class="step-body">
+        <p>Connect your 80mm or 58mm thermal printer via USB. Inside the application:</p>
+        <ol style="padding-left: 20px; line-height: 1.8;">
+          <li>Go to <strong>Settings &rarr; Receipt &amp; Hardware</strong>.</li>
+          <li>Select your thermal printer model from the dropdown.</li>
+          <li>Click <strong>"Test Print"</strong> to verify cutter and print alignment.</li>
+          <li>Connect your RJ11 cash drawer cable to the printer to enable automatic drawer opening on cash transactions.</li>
+        </ol>
+      </div>
+    </div>
+
+    <footer>
+      <p>&copy; 2026 TRIWYN POS Technologies. All Rights Reserved.</p>
+      <p style="margin-top: 6px;">Need live setup assistance from an engineer? Message our WhatsApp desk:</p>
+      <div class="hotlines">
+        <a class="hotline-btn" href="https://wa.me/94770802365" target="_blank">&#128222; WhatsApp: 0770802365</a>
+        <a class="hotline-btn" href="https://wa.me/94750802353" target="_blank">&#128222; WhatsApp: 0750802353</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

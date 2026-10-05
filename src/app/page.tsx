@@ -730,7 +730,12 @@ export default function HomePage() {
                     onChange={(e) => setAgreeTerms(e.target.checked)}
                     className="h-4 w-4 rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
                   />
-                  <span>I agree to the <span className="text-emerald-400 font-bold hover:underline">Terms & Conditions</span></span>
+                  <span>
+                    I agree to the{' '}
+                    <Link href="/terms" target="_blank" className="text-emerald-400 font-bold hover:underline" onClick={(e) => e.stopPropagation()}>
+                      Terms &amp; Conditions
+                    </Link>
+                  </span>
                 </label>
                 <label className="flex items-center gap-2.5 cursor-pointer text-xs text-slate-300">
                   <input
@@ -739,7 +744,12 @@ export default function HomePage() {
                     onChange={(e) => setAgreePrivacy(e.target.checked)}
                     className="h-4 w-4 rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
                   />
-                  <span>I agree to the <span className="text-emerald-400 font-bold hover:underline">Privacy Policy</span></span>
+                  <span>
+                    I agree to the{' '}
+                    <Link href="/privacy" target="_blank" className="text-emerald-400 font-bold hover:underline" onClick={(e) => e.stopPropagation()}>
+                      Privacy Policy
+                    </Link>
+                  </span>
                 </label>
               </div>
 
@@ -936,10 +946,10 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-2">
-            <div className="font-bold text-white uppercase text-[11px] tracking-wider">Company & Legal</div>
-            <div><span className="hover:text-white cursor-pointer">Terms & Conditions</span></div>
-            <div><span className="hover:text-white cursor-pointer">Privacy Policy</span></div>
-            <div><span className="hover:text-white cursor-pointer">License Agreement</span></div>
+            <div className="font-bold text-white uppercase text-[11px] tracking-wider">Company &amp; Legal</div>
+            <div><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms &amp; Conditions</Link></div>
+            <div><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></div>
+            <div><Link href="/terms#licensing" className="hover:text-emerald-400 transition-colors">License Agreement</Link></div>
             <div className="pt-2 text-slate-500">© 2026 TRIWYN POS. All Rights Reserved.</div>
           </div>
 

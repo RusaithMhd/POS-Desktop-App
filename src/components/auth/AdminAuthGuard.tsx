@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { Shield, Crown, Loader2, Lock, AlertTriangle } from 'lucide-react';
+import { SuperAdminNotificationCenter } from '@/components/superadmin/SuperAdminNotificationCenter';
 import { AdminAuthService, AdminSession, AdminRole } from '@/services/auth/AdminAuthService';
 import { getRawSqlDb, getLocalDb } from '@/infrastructure/database/sqlite/db';
 import { ensureAdminTables } from '@/services/auth/AdminAuthService';
@@ -122,6 +124,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ title, subtitle, actions }: AdminHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [session, setSession] = useState<AdminSession | null>(null);
 
   useEffect(() => {
@@ -134,32 +137,42 @@ export function AdminHeader({ title, subtitle, actions }: AdminHeaderProps) {
   };
 
   return (
-    <header className="bg-slate-900 border-b border-slate-700 px-6 py-3.5">
+    <header className="bg-slate-900 border-b border-slate-700 px-6 py-3.5 sticky top-0 z-30 backdrop-blur-md bg-slate-900/95">
       <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 mr-4">
             <div className="p-1.5 bg-amber-500/20 rounded-lg">
               <Crown className="h-4 w-4 text-amber-400" />
             </div>
-            <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Super Admin</span>
+            <div>
+              <span className="text-xs font-black text-amber-400 uppercase tracking-widest block leading-tight">Super Admin</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[9px] font-mono text-emerald-400 font-bold tracking-wider">LIVE SYNC</span>
+              </div>
+            </div>
           </div>
-          <div className="border-l border-slate-600 pl-4">
+          <div className="border-l border-slate-600 pl-4 hidden sm:block">
             <h1 className="text-sm font-bold text-white">{title}</h1>
-            {subtitle && <p className="text-[11px] text-slate-400">{subtitle}</p>}
+            {subtitle && <p className="text-[11px] text-slate-400 truncate max-w-md">{subtitle}</p>}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {actions}
+          
+          {/* Real-time Notification Center */}
+          <SuperAdminNotificationCenter />
+
           {session && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-700">
               <div className="text-right hidden sm:block">
                 <div className="text-xs font-bold text-white">{session.fullName}</div>
                 <div className="text-[10px] text-slate-400">{session.role}</div>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-red-900/50 border border-slate-600 hover:border-red-500/50 rounded-lg text-xs font-bold text-slate-300 hover:text-red-400 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-red-900/50 border border-slate-600 hover:border-red-500/50 rounded-lg text-xs font-bold text-slate-300 hover:text-red-400 transition-all cursor-pointer"
               >
                 Sign Out
               </button>
@@ -169,7 +182,7 @@ export function AdminHeader({ title, subtitle, actions }: AdminHeaderProps) {
       </div>
 
       {/* Sub-navigation */}
-      <div className="max-w-screen-xl mx-auto flex items-center gap-1 mt-3 overflow-x-auto pb-0.5">
+      <div className="max-w-screen-xl mx-auto flex items-center gap-1.5 mt-3 overflow-x-auto pb-0.5">
         {[
           { href: '/superadmin',               label: 'Overview' },
           { href: '/superadmin/customers',     label: 'Customers' },
@@ -178,17 +191,21 @@ export function AdminHeader({ title, subtitle, actions }: AdminHeaderProps) {
           { href: '/superadmin/devices',       label: 'Devices' },
           { href: '/superadmin/audit',         label: 'Audit Log' },
         ].map((nav) => {
-          const isActive = typeof window !== 'undefined' && window.location.pathname === nav.href;
+          const currentClean = (pathname || '').replace(/\/$/, '');
+          const navClean = nav.href.replace(/\/$/, '');
+          const isActive = currentClean === navClean;
           return (
-            <a
+            <Link
               key={nav.href}
               href={nav.href}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                isActive ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                isActive
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent'
               }`}
             >
               {nav.label}
-            </a>
+            </Link>
           );
         })}
       </div>

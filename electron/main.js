@@ -115,10 +115,10 @@ async function createWindow() {
     },
   });
 
-  let startUrl = 'http://localhost:3000';
+  let startUrl = 'http://localhost:3000/login';
 
   if (isDev) {
-    startUrl = process.env.ELECTRON_START_URL || 'http://localhost:3000';
+    startUrl = process.env.ELECTRON_START_URL || 'http://localhost:3000/login';
   } else {
     try {
       const outDir = path.join(__dirname, '../out');
@@ -126,13 +126,13 @@ async function createWindow() {
         const { server, port } = await createStaticServer(outDir);
         localServer = server;
         localServerPort = port;
-        startUrl = `http://127.0.0.1:${port}`;
+        startUrl = `http://127.0.0.1:${port}/login`;
       } else {
-        startUrl = `file://${path.join(__dirname, '../out/index.html')}`;
+        startUrl = `file://${path.join(__dirname, '../out/login.html')}`;
       }
     } catch (err) {
       console.error('[TRIWYN Desktop Engine] Failed to launch embedded server, falling back to file://', err);
-      startUrl = `file://${path.join(__dirname, '../out/index.html')}`;
+      startUrl = `file://${path.join(__dirname, '../out/login.html')}`;
     }
   }
 

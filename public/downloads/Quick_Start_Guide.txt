@@ -1,0 +1,59 @@
+===============================================================================
+TRIWYN POS — QUICK START & CASHIER OPERATIONAL MANUAL
+===============================================================================
+Version: 1.0.0 Commercial Offline Edition
+Support Hotlines: 0770802365 / 0750802353 (WhatsApp)
+===============================================================================
+
+1. DAILY CASHIER WORKFLOW:
+-------------------------------------------------------------------------------
+Step 1: Launch Application
+- Double click the "TRIWYN POS" icon on your Windows desktop.
+- Log in with your assigned username and password (or PIN).
+
+Step 2: Open Register Shift
+- If a shift is not open, enter your Opening Cash Float (e.g. 5,000.00).
+- Click "Open Shift". Your cash register drawer unlocks.
+
+Step 3: Ringing Up Sales
+- Scan product barcode with USB scanner, OR search by name / SKU in the search bar,
+  OR tap product tiles in category grids.
+- Modify item quantity or apply item-level discounts if authorized.
+- Press F2 to quickly focus on the cart search.
+
+Step 4: Tender & Payment
+- Press F12 or click "Checkout / Pay".
+- Select payment method: Cash, Card, Bank Transfer, or Split Payment.
+- If Cash, enter amount received: the system calculates exact change due.
+- Receipt automatically prints on your 80mm or 58mm thermal printer.
+
+Step 5: Hold & Recall Carts (Queue Busting)
+- If a customer needs to pick another item, click "Hold Cart" (Ctrl+H).
+- Ring up the next customer.
+- When ready, click "Recall Held Carts" to restore the previous transaction.
+
+2. INVENTORY & BATCH MANAGEMENT:
+-------------------------------------------------------------------------------
+- Navigate to "Products & Inventory" (F4).
+- Add products with SKU, Barcode, Cost Price, Selling Price, and Low Stock Alert threshold.
+- Batch & Expiry Tracking: For FMCG or pharmaceuticals, assign Batch Numbers and
+  Expiry dates. The system alerts when batches near expiration.
+
+3. END OF DAY / CLOSING SHIFT:
+-------------------------------------------------------------------------------
+- Navigate to Shifts (F5) -> "Close Shift".
+- Count actual cash, card slips, and vouchers in the drawer.
+- The system generates an automated Z-Report comparing expected vs. actual totals.
+- Print your Z-Report summary on the thermal printer.
+
+4. LOCAL DATABASE BACKUPS (.posbak):
+-------------------------------------------------------------------------------
+- Your data is stored locally in an embedded high-speed SQLite database.
+- Go to File -> Backup Database (or press Ctrl + Shift + B).
+- Save the backup file (`.posbak`) to a secure external USB drive or cloud drive.
+
+===============================================================================
+Questions? Need Support?
+WhatsApp 1: 0770802365
+WhatsApp 2: 0750802353
+===============================================================================

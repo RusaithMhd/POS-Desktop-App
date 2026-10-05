@@ -12,31 +12,46 @@ import { Button } from '@/components/ui/button';
 
 function DownloadContent() {
   const searchParams = useSearchParams();
-  const trialId = searchParams.get('trialId') || 'TRIAL-982415';
-  const business = searchParams.get('business') || 'Your Retail Business';
-  const expiry = searchParams.get('expiry') || new Date(Date.now() + 14 * 86400_000).toLocaleDateString();
+  const trialId = searchParams?.get('trialId') || 'TRIAL-982415';
+  const business = searchParams?.get('business') || 'Your Retail Business';
+  const expiry = searchParams?.get('expiry') || new Date(Date.now() + 14 * 86400_000).toLocaleDateString();
 
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showQuickGuide, setShowQuickGuide] = useState(false);
-  const [downloadStarted, setDownloadStarted] = useState(false);
+  const [downloadStarted, setDownloadStarted] = useState<string | null>(null);
+
+  const handleDownloadZipPackage = () => {
+    setDownloadStarted('Entire Application Package (ZIP with Installer & Support Files)');
+    const link = document.createElement('a');
+    link.href = '/downloads/TRIWYN-POS-Complete-Setup-Package.zip';
+    link.download = 'TRIWYN-POS-Complete-Setup-Package.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleDownloadInstaller = () => {
-    setDownloadStarted(true);
-    // Create simulated file download of the Windows Installer
-    const element = document.createElement('a');
-    const file = new Blob([
-      `TRIWYN POS Commercial Desktop Installer v1.0.0\nTrial ID: ${trialId}\nTarget OS: Windows 10/11 (64-bit)\nInstaller Package: POS-Setup.exe`
-    ], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = 'POS-Setup.exe';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    setDownloadStarted('Standalone Windows Installer (POS-Setup.exe)');
+    const link = document.createElement('a');
+    link.href = '/downloads/POS-Setup.exe';
+    link.download = 'POS-Setup.exe';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadSupportFile = (filename: string) => {
+    const link = document.createElement('a');
+    link.href = `/downloads/${filename}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-8">
         
         {/* Top Header */}
         <div className="text-center space-y-3">
@@ -44,20 +59,20 @@ function DownloadContent() {
             <CheckCircle2 className="h-8 w-8 text-emerald-400" />
           </div>
           <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">
-            Registration Successful
+            Registration Successful • 14-Day Full Access
           </span>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">YOUR FREE TRIAL IS READY</h1>
-          <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Your 14-day trial account has been created for <strong className="text-white">{business}</strong>.
-            Download the Desktop POS application and install it on your Windows computer.
+          <h1 className="text-3xl sm:text-4xl font-black text-white">YOUR POS TRIAL IS READY</h1>
+          <p className="text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
+            Your 14-day commercial trial account has been generated for <strong className="text-white">{business}</strong>.
+            Download the complete Windows desktop package containing the installer, native drivers, and setup guides.
           </p>
         </div>
 
         {/* 2-Column Info & Download Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Left Column: Official Trial Info (NO PASSWORDS OR USERNAMES) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl flex flex-col justify-between">
+          {/* Left Column: Official Trial Info */}
+          <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 space-y-6 shadow-xl flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
@@ -93,87 +108,253 @@ function DownloadContent() {
                 </div>
               </div>
 
-              <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
-                <div className="font-bold text-slate-200">How do I log in?</div>
-                <p>
-                  Launch the installed desktop app on your PC. The application communicates with your secure local terminal database.
+              <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-2">
+                <div className="font-bold text-white flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>How to Log In to the POS?</span>
+                </div>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  Install and launch the desktop application on your PC. The application communicates with your secure local offline database. When prompted, log in with your account credentials.
                 </p>
               </div>
-            </div>
 
-            <div className="pt-2 text-center text-xs text-slate-500">
-              Need assistance? WhatsApp us at <strong className="text-emerald-400">0770802365</strong>
-            </div>
-          </div>
-
-          {/* Right Column: Download Actions */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
-                  <Laptop className="h-5 w-5" />
+              <div className="p-4 bg-emerald-950/30 border border-emerald-800/40 rounded-2xl space-y-2">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block">
+                  Activation Assistance
+                </span>
+                <p className="text-[11px] text-slate-300">
+                  Need an official paid license or printer setup support? WhatsApp our activation team directly:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <a
+                    href="https://wa.me/94770802365"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>0770802365</span>
+                  </a>
+                  <a
+                    href="https://wa.me/94750802353"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg text-xs font-bold border border-emerald-500/30 transition-all flex items-center gap-1.5"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>0750802353</span>
+                  </a>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Download & Documentation</h3>
-                  <p className="text-xs text-slate-400">Windows 10 / Windows 11 (64-bit)</p>
-                </div>
-              </div>
-
-              {/* Main Download Button */}
-              <div className="space-y-2">
-                <button
-                  onClick={handleDownloadInstaller}
-                  className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-2xl font-black text-sm tracking-wide shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Download className="h-5 w-5" />
-                  <span>DOWNLOAD DESKTOP POS</span>
-                </button>
-                <div className="flex justify-between text-[11px] text-slate-400 px-1">
-                  <span>File: POS-Setup.exe</span>
-                  <span>Size: ~85 MB</span>
-                </div>
-              </div>
-
-              {downloadStarted && (
-                <div className="p-3 bg-emerald-950/60 border border-emerald-800/80 rounded-xl text-emerald-300 text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                  <span>Download initiated! Check your browser downloads folder.</span>
-                </div>
-              )}
-
-              {/* Guides Buttons */}
-              <div className="space-y-2.5 pt-2">
-                <button
-                  onClick={() => setShowInstallGuide(true)}
-                  className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl font-bold text-xs flex items-center justify-between transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="h-4 w-4 text-cyan-400" />
-                    <span>VIEW INSTALLATION GUIDE</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </button>
-
-                <button
-                  onClick={() => setShowQuickGuide(true)}
-                  className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl font-bold text-xs flex items-center justify-between transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <BookOpen className="h-4 w-4 text-purple-400" />
-                    <span>VIEW QUICK START GUIDE</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-500" />
-                </button>
               </div>
             </div>
 
             <div className="text-center pt-2">
               <Link href="/" className="text-xs font-bold text-slate-400 hover:text-white transition-colors">
-                ← Return to Homepage
+                ← Return to Main Website
               </Link>
             </div>
           </div>
 
+          {/* Right Column: Download Actions & Support Files */}
+          <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 space-y-6 shadow-xl flex flex-col justify-between">
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                    <Laptop className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Download Entire Application Suite</h3>
+                    <p className="text-xs text-slate-400">Windows 10 / Windows 11 (64-bit)</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase tracking-wider">
+                  v1.0 Enterprise
+                </span>
+              </div>
+
+              {/* PRIMARY ACTION: Download Complete ZIP Package with Support Files */}
+              <div className="p-5 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-emerald-500/50 rounded-2xl space-y-3 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 bg-emerald-500 text-slate-950 text-[10px] font-black uppercase px-3 py-0.5 rounded-bl-lg tracking-wider">
+                  Complete Bundle
+                </div>
+                
+                <div>
+                  <h4 className="font-black text-white text-base flex items-center gap-2">
+                    <span>Full Application &amp; Support Package</span>
+                  </h4>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Includes NSIS Installer (<code className="text-emerald-400">POS-Setup.exe</code>), 1-Click Batch Installer, Hardware &amp; Printer Guides, Offline Manual, and WhatsApp Support configs.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleDownloadZipPackage}
+                  className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-black text-sm tracking-wide shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-3 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <Download className="h-5 w-5" />
+                  <span>DOWNLOAD ENTIRE APPLICATION (.ZIP)</span>
+                </button>
+                <div className="flex justify-between text-[11px] text-slate-400 px-1 font-mono">
+                  <span>File: TRIWYN-POS-Complete-Setup-Package.zip</span>
+                  <span>Size: ~168 MB</span>
+                </div>
+              </div>
+
+              {/* SECONDARY ACTION: Standalone Executable */}
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="font-bold text-white text-xs">Direct Windows Installer (.EXE)</h5>
+                    <p className="text-[11px] text-slate-400">If you only need the single-click NSIS setup wizard executable.</p>
+                  </div>
+                  <button
+                    onClick={handleDownloadInstaller}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>Download .EXE</span>
+                  </button>
+                </div>
+              </div>
+
+              {downloadStarted && (
+                <div className="p-3.5 bg-emerald-950/70 border border-emerald-700/80 rounded-xl text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <span>Download started for: <strong className="text-white">{downloadStarted}</strong>. Check your browser downloads.</span>
+                </div>
+              )}
+
+              {/* INDIVIDUAL SUPPORT FILES DOWNLOADS */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Included Support &amp; Setup Documentation
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <button
+                    onClick={() => handleDownloadSupportFile('Installation_Guide.html')}
+                    className="p-3 bg-slate-950 hover:bg-slate-800/90 text-left border border-slate-800 rounded-xl flex items-center justify-between transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="h-4 w-4 text-cyan-400 shrink-0" />
+                      <span className="truncate text-slate-200 group-hover:text-white">Installation_Guide.html</span>
+                    </div>
+                    <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-cyan-400 shrink-0" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadSupportFile('Hardware_and_Thermal_Printer_Setup.txt')}
+                    className="p-3 bg-slate-950 hover:bg-slate-800/90 text-left border border-slate-800 rounded-xl flex items-center justify-between transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Printer className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <span className="truncate text-slate-200 group-hover:text-white">Thermal_Printer_Setup.txt</span>
+                    </div>
+                    <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-emerald-400 shrink-0" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadSupportFile('Quick_Start_Guide.txt')}
+                    className="p-3 bg-slate-950 hover:bg-slate-800/90 text-left border border-slate-800 rounded-xl flex items-center justify-between transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <BookOpen className="h-4 w-4 text-purple-400 shrink-0" />
+                      <span className="truncate text-slate-200 group-hover:text-white">Quick_Start_Guide.txt</span>
+                    </div>
+                    <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-purple-400 shrink-0" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadSupportFile('Install_TRIWYN_POS.bat')}
+                    className="p-3 bg-slate-950 hover:bg-slate-800/90 text-left border border-slate-800 rounded-xl flex items-center justify-between transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Laptop className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span className="truncate text-slate-200 group-hover:text-white">Install_TRIWYN_POS.bat</span>
+                    </div>
+                    <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-amber-400 shrink-0" />
+                  </button>
+                </div>
+              </div>
+
+              {/* View in Browser Buttons */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => setShowInstallGuide(true)}
+                  className="flex-1 py-2.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <FileText className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>Interactive Setup Guide</span>
+                </button>
+                <button
+                  onClick={() => setShowQuickGuide(true)}
+                  className="flex-1 py-2.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <BookOpen className="h-3.5 w-3.5 text-purple-400" />
+                  <span>Cashier Operations Guide</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────────────────
+            3. PROPER WINDOWS INSTALLATION STEPS (Dedicated Step-by-Step Card)
+            ─────────────────────────────────────────────────────────────────────── */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                Installation Walkthrough
+              </span>
+              <h3 className="text-xl font-black text-white">How to Properly Install TRIWYN POS on Windows</h3>
+            </div>
+            <span className="text-xs text-slate-400 font-semibold">Estimated Time: ~1 Minute</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center">1</span>
+                <h4 className="font-bold text-white text-xs">Extract ZIP</h4>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Right-click <code className="text-emerald-400 text-[10px]">TRIWYN-POS-Complete-Setup-Package.zip</code> and select <strong>"Extract All"</strong> to access the installer and support files.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center">2</span>
+                <h4 className="font-bold text-white text-xs">Run Setup</h4>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Double-click <strong className="text-white">POS-Setup.exe</strong> or run <code className="text-cyan-400 text-[10px]">Install_TRIWYN_POS.bat</code>. If Windows SmartScreen appears, click <u>More info</u> &rarr; <u>Run anyway</u>.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center">3</span>
+                <h4 className="font-bold text-white text-xs">Follow Wizard</h4>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Choose installation folder and keep <strong>"Create Desktop Shortcut"</strong> checked. The wizard registers the program in your Windows Start Menu.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center">4</span>
+                <h4 className="font-bold text-white text-xs">Launch Desktop POS</h4>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Launch <strong className="text-white">TRIWYN POS</strong> from your desktop. The offline SQLite engine and cashier register initialize automatically!
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* WhatsApp Activation Prompt Banner */}
@@ -184,7 +365,7 @@ function DownloadContent() {
             </div>
             <div>
               <h4 className="font-bold text-white text-sm">Need help setting up your printer or activating?</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Our support team is available on WhatsApp to assist you.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Our support engineers are available on WhatsApp to assist you directly.</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">

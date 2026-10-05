@@ -4,3 +4,5 @@ out
 dist
 tsconfig.tsbuildinfo
 *.log
+public/downloads/*.exe
+public/downloads/*.zip

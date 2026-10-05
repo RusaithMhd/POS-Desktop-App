@@ -326,8 +326,79 @@ export class CustomerRegistrationService {
   // ALL REGISTRATIONS (for Super Admin)
   // ---------------------------------------------------------------------------
 
+  static ensureDefaultRegistrations(db: any): void {
+    try {
+      const countStmt = db.prepare(`SELECT COUNT(*) as count FROM customer_registrations`);
+      let count = 0;
+      if (countStmt.step()) {
+        count = (countStmt.getAsObject().count as number) || 0;
+      }
+      countStmt.free();
+
+      if (count === 0) {
+        const now = new Date().toISOString();
+        const trialEnd = new Date(Date.now() + 14 * 86400_000).toISOString();
+
+        // 1. Merchant 1
+        db.run(
+          `INSERT OR IGNORE INTO customer_registrations
+            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
+           VALUES ('reg-demo-1', 'org-1791213425877-466xxh', 'chlifrost@gmail.com', 'Rusaith Muhammathu', 'TFTFTF', '0770802365', 'Sri Lanka', 'demo_hash', 'FREE_TRIAL', 'monthly', 'ACTIVE', datetime('now', '-2 days'), datetime('now'))`
+        );
+        db.run(
+          `INSERT OR IGNORE INTO subscriptions
+            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
+           VALUES ('sub-demo-1', 'org-1791213425877-466xxh', 'plan-free-trial', 'ACTIVE', 'monthly', datetime('now', '-2 days'), ?, ?, datetime('now', '-2 days'), datetime('now'))`,
+          [trialEnd, trialEnd]
+        );
+
+        // 2. Merchant 2
+        db.run(
+          `INSERT OR IGNORE INTO customer_registrations
+            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
+           VALUES ('reg-demo-2', 'org-1791204899120-881bba', 'chlifrost.tl@gmail.com', 'Rusaith Muhammathu', 'Rusaith Retail', '0750802353', 'Sri Lanka', 'demo_hash', 'FREE_TRIAL', 'monthly', 'TRIALING', datetime('now', '-1 hours'), datetime('now'))`
+        );
+        db.run(
+          `INSERT OR IGNORE INTO subscriptions
+            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
+           VALUES ('sub-demo-2', 'org-1791204899120-881bba', 'plan-free-trial', 'TRIALING', 'monthly', datetime('now'), ?, ?, datetime('now'), datetime('now'))`,
+          [trialEnd, trialEnd]
+        );
+
+        // 3. Merchant 3
+        db.run(
+          `INSERT OR IGNORE INTO customer_registrations
+            (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, created_at, updated_at)
+           VALUES ('reg-demo-3', 'org-1791198421045-992ccd', 'rusairzeck72@gmail.com', 'Muhammathu Rusaith', 'Apex Commercial', '0770802365', 'Sri Lanka', 'demo_hash', 'STARTER', 'yearly', 'ACTIVE', datetime('now', '-5 days'), datetime('now'))`
+        );
+        db.run(
+          `INSERT OR IGNORE INTO subscriptions
+            (id, organization_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, created_at, updated_at)
+           VALUES ('sub-demo-3', 'org-1791198421045-992ccd', 'plan-starter', 'ACTIVE', 'yearly', datetime('now', '-5 days'), datetime('now', '+360 days'), null, datetime('now', '-5 days'), datetime('now'))`
+        );
+
+        // 4. Default Devices
+        db.run(
+          `INSERT OR IGNORE INTO registered_devices
+            (id, organization_id, device_name, device_type, terminal_code, status, registered_at)
+           VALUES ('dev-demo-1', 'org-1791213425877-466xxh', 'POS Counter 01 - Windows NSIS', 'DESKTOP_POS', 'TERM-01', 'ACTIVE', datetime('now', '-2 days'))`
+        );
+        db.run(
+          `INSERT OR IGNORE INTO registered_devices
+            (id, organization_id, device_name, device_type, terminal_code, status, registered_at)
+           VALUES ('dev-demo-2', 'org-1791198421045-992ccd', 'Front Cashier - Main Terminal', 'DESKTOP_POS', 'TERM-02', 'ACTIVE', datetime('now', '-5 days'))`
+        );
+
+        saveLocalDbState();
+      }
+    } catch (e) {
+      console.error('Failed to seed default demo registrations:', e);
+    }
+  }
+
   static listAllRegistrations(): Record<string, unknown>[] {
     const db = getRawSqlDb();
+    this.ensureDefaultRegistrations(db);
     const stmt = db.prepare(`
       SELECT cr.*, 
              s.status as sub_status, s.trial_ends_at,

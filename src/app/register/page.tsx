@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Shield, CheckCircle2, Loader2, Eye, EyeOff, ArrowRight,
@@ -150,8 +151,8 @@ function SuccessScreen({ email, isTrial, trialEndsAt, planName, organizationId }
 
 function RegisterForm() {
   const searchParams = useSearchParams();
-  const planParam = (searchParams.get('plan') || 'FREE_TRIAL') as keyof typeof PLAN_CATALOG;
-  const billingParam = (searchParams.get('billing') || 'monthly') as 'monthly' | 'yearly';
+  const planParam = (searchParams?.get('plan') || 'FREE_TRIAL') as keyof typeof PLAN_CATALOG;
+  const billingParam = (searchParams?.get('billing') || 'monthly') as 'monthly' | 'yearly';
 
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<keyof typeof PLAN_CATALOG>(planParam);
@@ -349,8 +350,14 @@ function RegisterForm() {
                 className="mt-0.5 rounded text-emerald-500 bg-white/10 border-white/30"
               />
               <span className="text-xs text-slate-400">
-                I agree to the <span className="text-emerald-400 font-bold hover:underline cursor-pointer">Terms of Service</span> and{' '}
-                <span className="text-emerald-400 font-bold hover:underline cursor-pointer">Privacy Policy</span>
+                I agree to the{' '}
+                <Link href="/terms" target="_blank" className="text-emerald-400 font-bold hover:underline cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" target="_blank" className="text-emerald-400 font-bold hover:underline cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                  Privacy Policy
+                </Link>
               </span>
             </label>
           </div>

@@ -1,0 +1,56 @@
+===============================================================================
+TRIWYN POS — HARDWARE INTEGRATION & THERMAL PRINTER SETUP GUIDE
+===============================================================================
+Applicable Versions: TRIWYN POS v1.0.0 Enterprise Windows Edition
+Target Operating Systems: Windows 10, Windows 11 (64-bit)
+Support Hotlines: 0770802365 / 0750802353 (WhatsApp)
+===============================================================================
+
+1. THERMAL RECEIPT PRINTER (80mm & 58mm) SETUP:
+-------------------------------------------------------------------------------
+TRIWYN POS features native direct ESC/POS hardware printing. It works with:
+- EPSON TM-T88 / TM-T20 series
+- Xprinter XP-N160M / XP-58 / XP-80 series
+- Rongta RP80 / RP326 series
+- Gprinter, Bixolon, POS-58, POS-80 USB/Network printers
+
+Steps to Configure:
+1. Connect your thermal printer to your Windows PC via USB cable.
+2. Turn ON the printer and install the manufacturer's Windows printer driver.
+3. Open Windows "Printers & Scanners" settings:
+   - Ensure the printer appears and print a "Windows Test Page".
+4. In TRIWYN POS:
+   - Navigate to Settings -> Receipt & Hardware.
+   - Choose your Receipt Width: 80mm (Standard) or 58mm (Compact).
+   - Select your printer from the auto-detected System Printers dropdown.
+   - Click "Test Print Receipt". The cutter should execute automatically.
+
+2. CASH DRAWER (RJ11 / RJ12 KICK) SETUP:
+-------------------------------------------------------------------------------
+1. Connect the standard RJ11/RJ12 cable from the cash drawer to the "DK" (Drawer Kick)
+   port at the back of your thermal printer.
+2. TRIWYN POS automatically sends the ESC/POS kick pulse (Pin 2 / Pin 5) whenever
+   a Cash payment is completed.
+3. To open manually: Press Ctrl + Shift + O in the POS terminal or click "Open Drawer"
+   in the top navigation bar.
+
+3. USB BARCODE SCANNER SETUP:
+-------------------------------------------------------------------------------
+1. Plug any standard 1D/2D USB Barcode Scanner (Honeywell, Zebra, Datalogic, Eyoyo).
+2. The scanner works instantly as a USB HID Keyboard emulation device.
+3. Ensure the scanner is set to send a trailing "ENTER / CARRIAGE RETURN" suffix
+   (standard factory default for 99% of barcode scanners).
+4. When scanning any product barcode on the POS screen, the item is instantly
+   added to the customer's cart.
+
+4. DUAL CUSTOMER FACING DISPLAY (OPTIONAL):
+-------------------------------------------------------------------------------
+- If you have a secondary customer monitor, connect it via HDMI/VGA and set Windows
+  display settings to "Extend Desktop".
+- TRIWYN POS provides an optional Pop-out Live Customer Display window showing
+  real-time subtotal, items scanned, and change due.
+
+===============================================================================
+Need technical assistance setting up your hardware?
+Message us on WhatsApp: 0770802365 or 0750802353
+===============================================================================

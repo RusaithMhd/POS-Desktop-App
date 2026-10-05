@@ -115,6 +115,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     cleanPath === '/register' ||
     cleanPath === '/setup' ||
     cleanPath === '/download-trial' ||
+    cleanPath === '/terms' ||
+    cleanPath === '/privacy' ||
     cleanPath.startsWith('/superadmin') ||
     cleanPath.startsWith('/account');
 
