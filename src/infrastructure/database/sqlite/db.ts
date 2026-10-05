@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/sql-js';
 import initSqlJs, { Database } from 'sql.js';
 import * as schema from './schema';
 import { seedInitialData, ensurePermissionsMigrated, seedAccountingData } from './seed';
+import { ensureAdminTables } from './adminSchema';
 import { isDesktopApp, readDbFromDiskNative, saveDbToDiskNative } from '@/lib/electronBridge';
 
 let rawDb: Database | null = null;
@@ -69,6 +70,7 @@ export async function getLocalDb() {
 
     if (savedData) {
       rawDb = new SQL.Database(savedData);
+      createTables(rawDb);
       ensurePermissionsMigrated(rawDb);
       ensureOpeningBatchesExist(rawDb);
     } else {
@@ -734,6 +736,155 @@ function createTables(db: Database) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS receipts (
+      id TEXT PRIMARY KEY,
+      receipt_number TEXT NOT NULL UNIQUE,
+      sale_id TEXT NOT NULL REFERENCES sales(id),
+      terminal_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      sale_time TEXT NOT NULL,
+      payment_time TEXT NOT NULL,
+      receipt_created_time TEXT NOT NULL,
+      subtotal REAL NOT NULL,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL,
+      paid_amount REAL NOT NULL,
+      change_amount REAL NOT NULL DEFAULT 0,
+      payment_method TEXT NOT NULL DEFAULT 'CASH',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS print_jobs (
+      id TEXT PRIMARY KEY,
+      print_job_number TEXT NOT NULL UNIQUE,
+      receipt_id TEXT NOT NULL REFERENCES receipts(id),
+      sale_id TEXT NOT NULL REFERENCES sales(id),
+      printer_id TEXT NOT NULL,
+      terminal_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'QUEUED',
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      print_started_time TEXT,
+      print_completed_time TEXT,
+      print_duration_ms INTEGER DEFAULT 0,
+      error_message TEXT,
+      is_reprint INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS printers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT '80mm Thermal',
+      connection TEXT NOT NULL DEFAULT 'USB / Local',
+      terminal_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ONLINE',
+      is_default INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS active_user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      role_name TEXT NOT NULL,
+      terminal_id TEXT NOT NULL,
+      terminal_code TEXT NOT NULL,
+      device_info TEXT NOT NULL,
+      ip_address TEXT,
+      status TEXT NOT NULL DEFAULT 'ONLINE',
+      last_activity_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS subscription_plans (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT,
+      monthly_price REAL NOT NULL DEFAULT 0,
+      yearly_price REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'GBP',
+      trial_days INTEGER NOT NULL DEFAULT 14,
+      max_users INTEGER NOT NULL DEFAULT 3,
+      max_branches INTEGER NOT NULL DEFAULT 1,
+      max_devices INTEGER NOT NULL DEFAULT 2,
+      max_products INTEGER NOT NULL DEFAULT 1000,
+      max_transactions INTEGER NOT NULL DEFAULT 5000,
+      storage_limit_mb INTEGER NOT NULL DEFAULT 500,
+      entitlements_json TEXT NOT NULL,
+      support_level TEXT NOT NULL DEFAULT 'STANDARD',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      owner_user_id TEXT,
+      tax_number TEXT,
+      address TEXT,
+      phone TEXT,
+      email TEXT,
+      timezone TEXT NOT NULL DEFAULT 'Europe/London',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      plan_id TEXT NOT NULL REFERENCES subscription_plans(id),
+      status TEXT NOT NULL DEFAULT 'TRIALING',
+      billing_cycle TEXT NOT NULL DEFAULT 'MONTHLY',
+      current_period_start TEXT NOT NULL,
+      current_period_end TEXT NOT NULL,
+      cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+      cancelled_at TEXT,
+      cancelled_by TEXT,
+      cancellation_reason TEXT,
+      grace_period_ends_at TEXT,
+      trial_started_at TEXT,
+      trial_ends_at TEXT,
+      trial_used INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS subscription_invoices (
+      id TEXT PRIMARY KEY,
+      invoice_number TEXT NOT NULL UNIQUE,
+      subscription_id TEXT NOT NULL REFERENCES subscriptions(id),
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      plan_name TEXT NOT NULL,
+      billing_cycle TEXT NOT NULL,
+      billing_period_start TEXT NOT NULL,
+      billing_period_end TEXT NOT NULL,
+      subtotal REAL NOT NULL,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PAID',
+      payment_method TEXT NOT NULL DEFAULT 'Visa •••• 4242',
+      payment_date TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS subscription_events (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      subscription_id TEXT NOT NULL REFERENCES subscriptions(id),
+      event_type TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'SYSTEM',
+      performed_by TEXT,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL
+    );
+
     -- Index creation for high-speed POS search
     CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
@@ -743,12 +894,21 @@ function createTables(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);
     CREATE INDEX IF NOT EXISTS idx_sales_user ON sales(user_id);
     CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
+    CREATE INDEX IF NOT EXISTS idx_receipts_number ON receipts(receipt_number);
+    CREATE INDEX IF NOT EXISTS idx_receipts_sale ON receipts(sale_id);
+    CREATE INDEX IF NOT EXISTS idx_print_jobs_receipt ON print_jobs(receipt_id);
+    CREATE INDEX IF NOT EXISTS idx_print_jobs_status ON print_jobs(status);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
     CREATE INDEX IF NOT EXISTS idx_accounts_code ON accounts(account_code);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_number ON journal_entries(journal_number);
     CREATE INDEX IF NOT EXISTS idx_journal_lines_entry ON journal_lines(journal_entry_id);
     CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id);
+    CREATE INDEX IF NOT EXISTS idx_subs_org ON subscriptions(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status);
   `);
+
+  try { db.run('ALTER TABLE permissions ADD COLUMN module TEXT DEFAULT "general";'); } catch {}
+  try { db.run('ALTER TABLE permissions ADD COLUMN action_type TEXT DEFAULT "VIEW";'); } catch {}
 
   try { db.run('ALTER TABLE sales ADD COLUMN deleted_at TEXT;'); } catch {}
   try { db.run('ALTER TABLE sales ADD COLUMN deleted_by TEXT;'); } catch {}
@@ -766,18 +926,20 @@ function createTables(db: Database) {
 
   seedAccountingData(db);
   ensureOpeningBatchesExist(db);
+  ensureAdminTables(db);
 }
 
 export function ensureOpeningBatchesExist(db: Database) {
   try {
     const now = new Date().toISOString();
     const prodStmt = db.prepare('SELECT id, name, sku, cost_price, stock_quantity, created_at FROM products WHERE stock_quantity > 0');
-    const prodsToMigrate: Array<{ id: string; name: string; costPrice: number; stockQuantity: number; createdAt: string }> = [];
+    const prodsToMigrate: Array<{ id: string; name: string; sku: string; costPrice: number; stockQuantity: number; createdAt: string }> = [];
     while (prodStmt.step()) {
       const row = prodStmt.getAsObject();
       prodsToMigrate.push({
         id: row.id as string,
         name: row.name as string,
+        sku: (row.sku as string) || '',
         costPrice: (row.cost_price as number) || 0,
         stockQuantity: (row.stock_quantity as number) || 0,
         createdAt: (row.created_at as string) || now,
@@ -796,7 +958,7 @@ export function ensureOpeningBatchesExist(db: Database) {
 
       if (count === 0) {
         const batchId = `batch-open-${prod.id}`;
-        const batchNumber = `OPENING-000001`;
+        const batchNumber = `OPENING-${prod.sku || prod.id}`;
         db.run(
           `INSERT INTO inventory_batches (id, product_id, supplier_id, purchase_id, purchase_item_id, batch_number, supplier_batch_number, unit_cost, quantity_received, quantity_remaining, received_date, status, created_at, updated_at)
            VALUES (?, ?, NULL, NULL, NULL, ?, 'OPENING_STOCK', ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
@@ -845,10 +1007,11 @@ export function ensureOpeningBatchesExist(db: Database) {
             db.run('UPDATE inventory_batches SET quantity_remaining = ?, status = "ACTIVE", updated_at = ? WHERE id = ?', [newRem, now, ob.id]);
           } else {
             const batchId = `batch-open-${prod.id}-${Date.now()}`;
+            const batchNumber = `OPENING-${prod.sku || prod.id}-${Math.floor(100 + Math.random() * 900)}`;
             db.run(
               `INSERT INTO inventory_batches (id, product_id, supplier_id, purchase_id, purchase_item_id, batch_number, supplier_batch_number, unit_cost, quantity_received, quantity_remaining, received_date, status, created_at, updated_at)
-               VALUES (?, ?, NULL, NULL, NULL, 'OPENING-000001', 'OPENING_STOCK', ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
-              [batchId, prod.id, prod.costPrice, diff, diff, now, now, now]
+               VALUES (?, ?, NULL, NULL, NULL, ?, 'OPENING_STOCK', ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
+              [batchId, prod.id, batchNumber, prod.costPrice, diff, diff, now, now, now]
             );
           }
           openBatchCheck.free();

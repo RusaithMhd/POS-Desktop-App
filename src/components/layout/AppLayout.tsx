@@ -23,7 +23,8 @@ import {
   Wifi,
   WifiOff,
   ChefHat,
-  Calculator
+  Calculator,
+  CreditCard
 } from 'lucide-react';
 import { AuthService, UserSession } from '@/features/auth/AuthService';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +72,16 @@ export function AppLayout({ children }: AppLayoutProps) {
     window.addEventListener('settings-updated', refreshSettings);
     window.addEventListener('permissions-updated', refreshSettings);
 
+    // Desktop App (Electron) launches directly into the POS / Login experience
+    if (isDesktopApp() && (pathname === '/' || pathname === '')) {
+      const session = AuthService.getActiveSession();
+      if (session) {
+        router.replace('/pos');
+      } else {
+        router.replace('/login');
+      }
+    }
+
     let unbindQuickAction: (() => void) | undefined;
     if (isDesktopApp() && window.electronAPI) {
       unbindQuickAction = window.electronAPI.onQuickAction((action) => {
@@ -92,16 +103,27 @@ export function AppLayout({ children }: AppLayoutProps) {
       window.removeEventListener('permissions-updated', refreshSettings);
       if (unbindQuickAction) unbindQuickAction();
     };
-  }, [router]);
+  }, [router, pathname]);
 
   const cleanPath = (pathname || '').replace(/\/$/, '');
 
-  if (cleanPath === '/login') {
+  const isStandalonePage =
+    cleanPath === '' ||
+    cleanPath === '/' ||
+    cleanPath === '/login' ||
+    cleanPath === '/pricing' ||
+    cleanPath === '/register' ||
+    cleanPath === '/setup' ||
+    cleanPath === '/download-trial' ||
+    cleanPath.startsWith('/superadmin') ||
+    cleanPath.startsWith('/account');
+
+  if (isStandalonePage) {
     return (
-      <div className="flex flex-col h-screen bg-slate-100 text-slate-900 font-sans overflow-hidden">
+      <div className="flex flex-col h-screen font-sans overflow-hidden">
         <AppSplashLoader />
         <DesktopTitleBar />
-        <main className="flex-1 overflow-y-auto bg-slate-100">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
@@ -166,6 +188,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const managementNavItems = [
     { href: '/shifts', label: 'Cash Register', icon: Lock, permission: ['cash_register.open', 'cash_register.close', 'shift.view'] },
     { href: '/users', label: 'Users & Roles', icon: UserCheck, permission: ['users.view', 'users.manage', 'roles.view', 'roles.manage'] },
+    { href: '/account', label: 'Subscription & Org', icon: CreditCard, permission: ['settings.view', 'settings.manage'] },
     { href: '/settings', label: 'Settings', icon: Settings, permission: ['settings.view', 'settings.manage'] },
   ];
 

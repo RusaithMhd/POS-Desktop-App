@@ -85,6 +85,8 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) 
           quantity: i.quantity,
           discountAmount: i.discountAmount,
           taxRate: i.taxRate,
+          selectedBatchId: i.selectedBatchId,
+          selectedBatchNumber: i.selectedBatchNumber,
         })),
         payments: finalPayments,
         overallDiscountAmount,

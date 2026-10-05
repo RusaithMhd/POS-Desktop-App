@@ -635,3 +635,169 @@ export const accountMappings = sqliteTable('account_mappings', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// ----------------------------------------------------------------------
+// 9. REAL-TIME MULTI-USER, RECEIPT & PRINT QUEUE TABLES
+// ----------------------------------------------------------------------
+
+export const receipts = sqliteTable('receipts', {
+  id: text('id').primaryKey(),
+  receiptNumber: text('receipt_number').notNull().unique(), // e.g. REC-000102
+  saleId: text('sale_id').notNull().references(() => sales.id),
+  terminalId: text('terminal_id').notNull(),
+  userId: text('user_id').notNull(),
+  saleTime: text('sale_time').notNull(),
+  paymentTime: text('payment_time').notNull(),
+  receiptCreatedTime: text('receipt_created_time').notNull(),
+  subtotal: real('subtotal').notNull(),
+  discountAmount: real('discount_amount').notNull().default(0),
+  taxAmount: real('tax_amount').notNull().default(0),
+  totalAmount: real('total_amount').notNull(),
+  paidAmount: real('paid_amount').notNull(),
+  changeAmount: real('change_amount').notNull().default(0),
+  paymentMethod: text('payment_method').notNull().default('CASH'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  receiptNumIdx: index('receipts_num_idx').on(table.receiptNumber),
+  saleIdx: index('receipts_sale_idx').on(table.saleId),
+  createdIdx: index('receipts_created_idx').on(table.createdAt),
+}));
+
+export const printJobs = sqliteTable('print_jobs', {
+  id: text('id').primaryKey(),
+  printJobNumber: text('print_job_number').notNull().unique(), // e.g. PJ-000102
+  receiptId: text('receipt_id').notNull().references(() => receipts.id),
+  saleId: text('sale_id').notNull().references(() => sales.id),
+  printerId: text('printer_id').notNull(),
+  terminalId: text('terminal_id').notNull(),
+  userId: text('user_id').notNull(),
+  status: text('status').notNull().default('QUEUED'), // 'QUEUED', 'PRINTING', 'PRINTED', 'FAILED', 'CANCELLED'
+  retryCount: integer('retry_count').notNull().default(0),
+  printStartedTime: text('print_started_time'),
+  printCompletedTime: text('print_completed_time'),
+  printDurationMs: integer('print_duration_ms').default(0),
+  errorMessage: text('error_message'),
+  isReprint: integer('is_reprint', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  receiptIdx: index('print_jobs_receipt_idx').on(table.receiptId),
+  saleIdx: index('print_jobs_sale_idx').on(table.saleId),
+  statusIdx: index('print_jobs_status_idx').on(table.status),
+  createdIdx: index('print_jobs_created_idx').on(table.createdAt),
+}));
+
+export const printers = sqliteTable('printers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull().default('80mm Thermal'),
+  connection: text('connection').notNull().default('USB / Local'),
+  terminalId: text('terminal_id').notNull(),
+  status: text('status').notNull().default('ONLINE'), // 'ONLINE', 'OFFLINE', 'PAPER_OUT', 'ERROR'
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// ----------------------------------------------------------------------
+// 10. SAAS SUBSCRIPTION, BILLING & ENTITLEMENT TABLES
+// ----------------------------------------------------------------------
+
+export const subscriptionPlans = sqliteTable('subscription_plans', {
+  id: text('id').primaryKey(),
+  code: text('code').notNull().unique(), // 'FREE_TRIAL', 'STARTER', 'PROFESSIONAL', 'BUSINESS', 'ENTERPRISE'
+  name: text('name').notNull(),
+  description: text('description'),
+  monthlyPrice: real('monthly_price').notNull().default(0),
+  yearlyPrice: real('yearly_price').notNull().default(0),
+  currency: text('currency').notNull().default('GBP'),
+  trialDays: integer('trial_days').notNull().default(14),
+  maxUsers: integer('max_users').notNull().default(3),
+  maxBranches: integer('max_branches').notNull().default(1),
+  maxDevices: integer('max_devices').notNull().default(2),
+  maxProducts: integer('max_products').notNull().default(1000),
+  maxTransactions: integer('max_transactions').notNull().default(5000),
+  storageLimitMb: integer('storage_limit_mb').notNull().default(500),
+  entitlementsJson: text('entitlements_json').notNull(), // Array of feature keys e.g. ["inventory.fifo", "reports.advanced"]
+  supportLevel: text('support_level').notNull().default('STANDARD'), // 'COMMUNITY', 'STANDARD', 'PRIORITY', '247'
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  codeIdx: index('plans_code_idx').on(table.code),
+}));
+
+export const organizations = sqliteTable('organizations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull().unique(),
+  ownerUserId: text('owner_user_id'),
+  taxNumber: text('tax_number'),
+  address: text('address'),
+  phone: text('phone'),
+  email: text('email'),
+  timezone: text('timezone').notNull().default('Europe/London'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const subscriptions = sqliteTable('subscriptions', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.id),
+  planId: text('plan_id').notNull().references(() => subscriptionPlans.id),
+  status: text('status').notNull().default('TRIALING'), // 'TRIALING', 'ACTIVE', 'PAST_DUE', 'GRACE_PERIOD', 'CANCELLED', 'EXPIRED', 'SUSPENDED', 'INCOMPLETE', 'PAYMENT_FAILED'
+  billingCycle: text('billing_cycle').notNull().default('MONTHLY'), // 'MONTHLY', 'YEARLY'
+  currentPeriodStart: text('current_period_start').notNull(),
+  currentPeriodEnd: text('current_period_end').notNull(),
+  cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' }).notNull().default(false),
+  cancelledAt: text('cancelled_at'),
+  cancelledBy: text('cancelled_by'),
+  cancellationReason: text('cancellation_reason'),
+  gracePeriodEndsAt: text('grace_period_ends_at'),
+  trialStartedAt: text('trial_started_at'),
+  trialEndsAt: text('trial_ends_at'),
+  trialUsed: integer('trial_used', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  orgIdx: index('subs_org_idx').on(table.organizationId),
+  statusIdx: index('subs_status_idx').on(table.status),
+}));
+
+export const subscriptionInvoices = sqliteTable('subscription_invoices', {
+  id: text('id').primaryKey(),
+  invoiceNumber: text('invoice_number').notNull().unique(),
+  subscriptionId: text('subscription_id').notNull().references(() => subscriptions.id),
+  organizationId: text('organization_id').notNull().references(() => organizations.id),
+  planName: text('plan_name').notNull(),
+  billingCycle: text('billing_cycle').notNull(),
+  billingPeriodStart: text('billing_period_start').notNull(),
+  billingPeriodEnd: text('billing_period_end').notNull(),
+  subtotal: real('subtotal').notNull(),
+  taxAmount: real('tax_amount').notNull().default(0),
+  discountAmount: real('discount_amount').notNull().default(0),
+  totalAmount: real('total_amount').notNull(),
+  status: text('status').notNull().default('PAID'), // 'PAID', 'PENDING', 'FAILED', 'VOIDED'
+  paymentMethod: text('payment_method').notNull().default('Visa •••• 4242'),
+  paymentDate: text('payment_date'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  subIdx: index('sub_inv_sub_idx').on(table.subscriptionId),
+  orgIdx: index('sub_inv_org_idx').on(table.organizationId),
+  numberIdx: index('sub_inv_num_idx').on(table.invoiceNumber),
+}));
+
+export const subscriptionEvents = sqliteTable('subscription_events', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.id),
+  subscriptionId: text('subscription_id').notNull().references(() => subscriptions.id),
+  eventType: text('event_type').notNull(), // 'TRIAL_STARTED', 'PLAN_CHANGED', 'PAYMENT_SUCCESS', 'PAYMENT_FAILED', 'GRACE_PERIOD_STARTED', 'SUSPENDED', 'CANCELLED', 'REACTIVATED', 'ADMIN_OVERRIDE'
+  source: text('source').notNull().default('SYSTEM'), // 'SYSTEM', 'USER', 'ADMIN_OVERRIDE', 'WEBHOOK'
+  performedBy: text('performed_by'),
+  metadataJson: text('metadata_json'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  orgIdx: index('sub_evt_org_idx').on(table.organizationId),
+  typeIdx: index('sub_evt_type_idx').on(table.eventType),
+}));
+
+
+

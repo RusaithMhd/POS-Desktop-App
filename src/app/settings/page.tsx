@@ -15,7 +15,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Eye,
-  ChefHat
+  ChefHat,
+  SlidersHorizontal
 } from 'lucide-react';
 import { getLocalDb, getRawSqlDb } from '@/infrastructure/database/sqlite/db';
 import { isDesktopApp, exportDatabaseBackupNative, importDatabaseBackupNative, fetchSystemPrintersNative } from '@/lib/electronBridge';
@@ -37,7 +38,7 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
-  const [activeTab, setActiveTab] = useState<'shop' | 'receipt' | 'tax' | 'payments' | 'backup' | 'sync'>('shop');
+  const [activeTab, setActiveTab] = useState<'shop' | 'receipt' | 'tax' | 'payments' | 'inventory' | 'backup' | 'sync'>('shop');
   
   // 1. Shop Details Form State
   const [businessName, setBusinessName] = useState('TRIWYN Retail & Cafe');
@@ -80,11 +81,15 @@ function SettingsContent() {
   const [autoKickDrawer, setAutoKickDrawer] = useState(true);
   const [enableKOTDisplay, setEnableKOTDisplay] = useState(true);
 
-  // 5. Backup & Integrity
+  // 5. Inventory & Batch Allocation State
+  const [batchAllocationMethod, setBatchAllocationMethod] = useState<'FIFO' | 'FEFO' | 'MANUAL' | 'FIFO_MANUAL_OVERRIDE'>('FIFO_MANUAL_OVERRIDE');
+  const [allowExpiredStockOverride, setAllowExpiredStockOverride] = useState(false);
+
+  // 6. Backup & Integrity
   const [integrityStatus, setIntegrityStatus] = useState('Not Checked');
   const [backupSize, setBackupSize] = useState('0 KB');
 
-  // 6. Offline & Sync
+  // 7. Offline & Sync
   const [serverUrl, setServerUrl] = useState('https://api.triwynpos.com/v1');
   const [syncInterval, setSyncInterval] = useState('realtime');
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -146,6 +151,9 @@ function SettingsContent() {
       setEnableCustomerCredit(settings.enableCustomerCredit);
       setAutoKickDrawer(settings.autoKickDrawer);
       setEnableKOTDisplay(settings.enableKOTDisplay !== false);
+
+      setBatchAllocationMethod(settings.batchAllocationMethod || 'FIFO_MANUAL_OVERRIDE');
+      setAllowExpiredStockOverride(Boolean(settings.allowExpiredStockOverride));
 
       setServerUrl(settings.serverUrl);
       setSyncInterval(settings.syncInterval);
@@ -225,6 +233,8 @@ function SettingsContent() {
         enableCustomerCredit,
         autoKickDrawer,
         enableKOTDisplay,
+        batchAllocationMethod,
+        allowExpiredStockOverride,
         serverUrl,
         syncInterval,
       });
@@ -332,6 +342,7 @@ function SettingsContent() {
             { id: 'receipt', label: 'Receipt Template', icon: Receipt },
             { id: 'tax', label: 'Tax Configuration', icon: Percent },
             { id: 'payments', label: 'Payment Methods', icon: CreditCard },
+            { id: 'inventory', label: 'Inventory & Batches', icon: SlidersHorizontal },
             { id: 'backup', label: 'Backup & Restore', icon: HardDrive },
             { id: 'sync', label: 'Offline & Sync', icon: RefreshCw },
           ].map((tab) => {
@@ -352,6 +363,30 @@ function SettingsContent() {
               </button>
             );
           })}
+
+          <div className="pt-2 border-t border-slate-100 mt-2 space-y-1">
+            <a
+              href="/settings/billing"
+              className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+            >
+              <CreditCard className="h-4 w-4 text-emerald-200" />
+              <span>Subscription & Billing</span>
+            </a>
+            <a
+              href="/settings/health"
+              className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span>Data Protection Dashboard</span>
+            </a>
+            <a
+              href="/admin"
+              className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            >
+              <ShieldCheck className="h-4 w-4 text-amber-200" />
+              <span>Super Admin Console</span>
+            </a>
+          </div>
         </div>
 
         {/* Right Content Panel (9 cols) */}
@@ -734,6 +769,8 @@ function SettingsContent() {
                           enableKOTDisplay,
                           serverUrl,
                           syncInterval,
+                          batchAllocationMethod,
+                          allowExpiredStockOverride,
                         }}
                       />
                     </div>
@@ -925,6 +962,111 @@ function SettingsContent() {
 
                   <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer">
                     Save Module & Payment Configurations
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 5. INVENTORY & BATCH ALLOCATION SETTINGS */}
+          {activeTab === 'inventory' && (
+            <Card className="border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-emerald-600" /> Batch Inventory & Stock Allocation Rules
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="font-bold text-slate-800 block mb-1">
+                        Default Stock Allocation Method *
+                      </label>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        Controls how stock is automatically deducted from inventory batches during POS checkout.
+                      </p>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2.5 p-3 border rounded-md cursor-pointer hover:bg-slate-50">
+                          <input
+                            type="radio"
+                            name="batchMethod"
+                            value="FIFO_MANUAL_OVERRIDE"
+                            checked={batchAllocationMethod === 'FIFO_MANUAL_OVERRIDE'}
+                            onChange={() => setBatchAllocationMethod('FIFO_MANUAL_OVERRIDE')}
+                            className="text-emerald-600"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-900 block">FIFO with Manual Override (Recommended Default)</span>
+                            <span className="text-[11px] text-slate-500">Automatically consumes oldest batches first while allowing cashiers to manually pick specific batches.</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 p-3 border rounded-md cursor-pointer hover:bg-slate-50">
+                          <input
+                            type="radio"
+                            name="batchMethod"
+                            value="FIFO"
+                            checked={batchAllocationMethod === 'FIFO'}
+                            onChange={() => setBatchAllocationMethod('FIFO')}
+                            className="text-emerald-600"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-900 block">FIFO — First In First Out (Strict)</span>
+                            <span className="text-[11px] text-slate-500">Strictly consumes stock from the oldest received batch lot first.</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 p-3 border rounded-md cursor-pointer hover:bg-slate-50">
+                          <input
+                            type="radio"
+                            name="batchMethod"
+                            value="FEFO"
+                            checked={batchAllocationMethod === 'FEFO'}
+                            onChange={() => setBatchAllocationMethod('FEFO')}
+                            className="text-emerald-600"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-900 block">FEFO — First Expiry First Out</span>
+                            <span className="text-[11px] text-slate-500">Prioritizes batches closest to their expiry date first. Ideal for perishables/pharmaceuticals.</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 p-3 border rounded-md cursor-pointer hover:bg-slate-50">
+                          <input
+                            type="radio"
+                            name="batchMethod"
+                            value="MANUAL"
+                            checked={batchAllocationMethod === 'MANUAL'}
+                            onChange={() => setBatchAllocationMethod('MANUAL')}
+                            className="text-emerald-600"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-900 block">Manual Batch Selection Only</span>
+                            <span className="text-[11px] text-slate-500">Requires cashier or supervisor to manually choose a batch lot for every checkout item.</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 border border-amber-200 bg-amber-50/50 rounded-lg space-y-2">
+                      <label className="flex items-center gap-2.5 font-bold text-amber-950 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowExpiredStockOverride}
+                          onChange={(e) => setAllowExpiredStockOverride(e.target.checked)}
+                          className="h-4 w-4 rounded text-amber-600"
+                        />
+                        Allow Expired Stock Override (Supervisor Authorized)
+                      </label>
+                      <p className="text-[11px] text-amber-800 pl-6">
+                        By default, expired inventory batches are strictly blocked from sale. Enabling this setting permits authorized supervisors to override expired batch restrictions with full audit logging.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer">
+                    Save Inventory Configuration
                   </Button>
                 </form>
               </CardContent>

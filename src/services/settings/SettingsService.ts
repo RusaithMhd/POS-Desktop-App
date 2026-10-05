@@ -35,6 +35,8 @@ export interface ShopSettings {
   enableKOTDisplay: boolean;
   serverUrl: string;
   syncInterval: string;
+  batchAllocationMethod: 'FIFO' | 'FEFO' | 'MANUAL' | 'FIFO_MANUAL_OVERRIDE';
+  allowExpiredStockOverride: boolean;
 }
 
 export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
@@ -72,6 +74,8 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   enableKOTDisplay: true,
   serverUrl: 'https://api.triwynpos.com/v1',
   syncInterval: 'realtime',
+  batchAllocationMethod: 'FIFO_MANUAL_OVERRIDE',
+  allowExpiredStockOverride: false,
 };
 
 class SettingsService {
@@ -138,6 +142,8 @@ class SettingsService {
         else if (key === 'enable_kot_display') this.cachedSettings.enableKOTDisplay = Boolean(val);
         else if (key === 'server_url') this.cachedSettings.serverUrl = String(val);
         else if (key === 'sync_interval') this.cachedSettings.syncInterval = String(val);
+        else if (key === 'batch_allocation_method') this.cachedSettings.batchAllocationMethod = val as any;
+        else if (key === 'allow_expired_stock_override') this.cachedSettings.allowExpiredStockOverride = Boolean(val);
       }
       setStmt.free();
     } catch (e) {
@@ -202,6 +208,8 @@ class SettingsService {
         enable_kot_display: this.cachedSettings.enableKOTDisplay,
         server_url: this.cachedSettings.serverUrl,
         sync_interval: this.cachedSettings.syncInterval,
+        batch_allocation_method: this.cachedSettings.batchAllocationMethod,
+        allow_expired_stock_override: this.cachedSettings.allowExpiredStockOverride,
       };
 
       for (const [key, val] of Object.entries(settingsMap)) {

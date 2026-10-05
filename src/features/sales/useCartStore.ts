@@ -7,6 +7,9 @@ export interface CartItem {
   unitPrice: number;
   discountAmount: number;
   taxRate: number;
+  selectedBatchId?: string;
+  selectedBatchNumber?: string;
+  allocationMode?: 'AUTO' | 'MANUAL';
   notes?: string;
 }
 
@@ -38,6 +41,7 @@ interface CartStore {
   updateQuantity: (productId: string, quantity: number) => void;
   updateLineDiscount: (productId: string, discount: number) => void;
   updateUnitPrice: (productId: string, price: number) => void;
+  updateItemBatch: (productId: string, batchId?: string, batchNumber?: string, price?: number) => void;
   removeItem: (productId: string) => void;
   setCustomer: (customer: Customer | null) => void;
   setOverallDiscount: (amount: number) => void;
@@ -81,6 +85,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
             unitPrice: product.sellingPrice,
             discountAmount: 0,
             taxRate: product.taxRate || 8.0,
+            allocationMode: 'AUTO',
           },
         ],
       });
@@ -109,6 +114,22 @@ export const useCartStore = create<CartStore>((set, get) => ({
     const updated = get().items.map((item) =>
       item.product.id === productId ? { ...item, unitPrice: Math.max(0, price) } : item
     );
+    set({ items: updated });
+  },
+
+  updateItemBatch: (productId: string, batchId?: string, batchNumber?: string, price?: number) => {
+    const updated = get().items.map((item) => {
+      if (item.product.id === productId) {
+        return {
+          ...item,
+          selectedBatchId: batchId || undefined,
+          selectedBatchNumber: batchNumber || undefined,
+          allocationMode: batchId ? ('MANUAL' as const) : ('AUTO' as const),
+          unitPrice: price !== undefined && price > 0 ? price : item.product.sellingPrice,
+        };
+      }
+      return item;
+    });
     set({ items: updated });
   },
 

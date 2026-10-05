@@ -69,41 +69,56 @@ function PurchasesContent() {
 
   useEffect(() => {
     loadPurchasesData();
-  }, []);
+  }, [isFormOpen]);
 
   const loadPurchasesData = async () => {
     try {
       await getLocalDb();
-      const raw = getRawSqlDb();
 
-      // Fetch Purchases
-      const pStmt = raw.prepare(`
-        SELECT p.*, s.name as supplier_name, s.code as supplier_code
-        FROM purchases p
-        LEFT JOIN suppliers s ON p.supplier_id = s.id
-        ORDER BY p.created_at DESC
-      `);
-      const pList: any[] = [];
-      while (pStmt.step()) {
-        pList.push(pStmt.getAsObject());
+      // Fetch Suppliers & Products FIRST
+      try {
+        const [sList, prodList] = await Promise.all([
+          supplierRepo.getAll(),
+          productRepo.getAll(),
+        ]);
+
+        setSuppliers(sList);
+        setProducts(prodList);
+
+        if (sList.length > 0) {
+          setSupplierId((prev) => (prev && sList.some((s) => s.id === prev) ? prev : sList[0].id));
+        }
+        if (prodList.length > 0) {
+          setSelectedProductId((prev) => {
+            const nextId = prev && prodList.some((p) => p.id === prev) ? prev : prodList[0].id;
+            const found = prodList.find((p) => p.id === nextId) || prodList[0];
+            setInputCost(found.costPrice?.toString() || '100.00');
+            return nextId;
+          });
+        }
+      } catch (e) {
+        console.error('Failed to fetch suppliers/products:', e);
       }
-      pStmt.free();
 
-      // Fetch Suppliers & Products
-      const [sList, prodList] = await Promise.all([
-        supplierRepo.getAll(),
-        productRepo.getAll(),
-      ]);
-
-      setPurchases(pList);
-      setSuppliers(sList);
-      setProducts(prodList);
-
-      if (sList.length > 0 && !supplierId) setSupplierId(sList[0].id);
-      if (prodList.length > 0 && !selectedProductId) {
-        setSelectedProductId(prodList[0].id);
-        setInputCost(prodList[0].costPrice?.toString() || '100.00');
+      // Fetch Purchases History
+      try {
+        const raw = getRawSqlDb();
+        const pStmt = raw.prepare(`
+          SELECT p.*, s.name as supplier_name, s.code as supplier_code
+          FROM purchases p
+          LEFT JOIN suppliers s ON p.supplier_id = s.id
+          ORDER BY p.created_at DESC
+        `);
+        const pList: any[] = [];
+        while (pStmt.step()) {
+          pList.push(pStmt.getAsObject());
+        }
+        pStmt.free();
+        setPurchases(pList);
+      } catch (e) {
+        console.error('Failed to fetch purchase orders:', e);
       }
+
       if (!invoiceNumber) setInvoiceNumber(`SUP-INV-${Date.now().toString().slice(-6)}`);
     } catch (err: any) {
       console.error(err);
@@ -292,6 +307,7 @@ function PurchasesContent() {
                     onChange={(e) => setSupplierId(e.target.value)}
                     className="w-full h-9 mt-1 px-3 border border-slate-300 rounded-md bg-white text-xs font-bold text-slate-900"
                   >
+                    {suppliers.length === 0 && <option value="">No suppliers found</option>}
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.code})
@@ -364,6 +380,7 @@ function PurchasesContent() {
                       onChange={(e) => handleProductSelectChange(e.target.value)}
                       className="w-full h-9 mt-1 px-3 border border-slate-300 rounded-md bg-white text-xs font-bold text-slate-900"
                     >
+                      {products.length === 0 && <option value="">No products found</option>}
                       {products.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name} ({p.sku})

@@ -19,8 +19,12 @@ import {
   Wifi,
   WifiOff,
   UserPlus,
-  Check
+  Check,
+  ChevronDown,
+  FileText,
+  Printer
 } from 'lucide-react';
+import { SystemStatusBar } from '@/components/common/SystemStatusBar';
 import { getLocalDb } from '@/infrastructure/database/sqlite/db';
 import { SQLiteProductRepository, SQLiteShiftRepository } from '@/infrastructure/repositories/SQLiteRepositories';
 import { ProductEntity, CategoryEntity } from '@/domain/entities/Product';
@@ -36,6 +40,7 @@ import { DiscountModal } from '@/components/pos/DiscountModal';
 import { HeldSalesModal } from '@/components/pos/HeldSalesModal';
 import { CustomerModal } from '@/components/pos/CustomerModal';
 import { CategoryModal } from '@/components/pos/CategoryModal';
+import { BatchSelectionModal } from '@/components/pos/BatchSelectionModal';
 import { defaultSettingsService, ShopSettings, DEFAULT_SHOP_SETTINGS } from '@/services/settings/SettingsService';
 import { calculateCartTaxAndTotals } from '@/lib/tax';
 import { SaleEntity } from '@/domain/entities/Sale';
@@ -83,6 +88,7 @@ export default function PosCheckoutPage() {
   const [isHeldSalesOpen, setIsHeldSalesOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [batchModalTarget, setBatchModalTarget] = useState<{ productId: string; productName: string; selectedBatchId?: string } | null>(null);
   const [completedSale, setCompletedSale] = useState<SaleEntity | null>(null);
 
   const {
@@ -91,6 +97,7 @@ export default function PosCheckoutPage() {
     overallDiscountAmount,
     addItem,
     updateQuantity,
+    updateItemBatch,
     removeItem,
     clearCart,
     holdCurrentSale,
@@ -216,25 +223,23 @@ export default function PosCheckoutPage() {
         </div>
 
         <div className="flex items-center gap-3 text-xs">
+          {/* Realtime System Status Bar */}
+          <SystemStatusBar />
+
+          {/* Receipt Print Log Button */}
+          <button
+            onClick={() => router.push('/receipts')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold transition-colors"
+            title="Open Receipt Printing & Audit Log"
+          >
+            <Printer className="h-3.5 w-3.5 text-slate-600" />
+            <span>Receipts</span>
+          </button>
+
           {/* Shift Register Status */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
             <span className={`h-2 w-2 rounded-full ${activeShift ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
             <span>{activeShift ? 'Register Open' : 'Register Closed'}</span>
-          </div>
-
-          {/* Sync Connection Status */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold">
-            {isOnline ? (
-              <>
-                <Wifi className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Server Synced</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-3.5 w-3.5 text-amber-600" />
-                <span>Offline Mode</span>
-              </>
-            )}
           </div>
 
           {/* Cashier Badge */}
@@ -452,7 +457,29 @@ export default function PosCheckoutPage() {
               items.map((item) => (
                 <div key={item.product.id} className="p-2 space-y-1.5 hover:bg-slate-50 transition-colors">
                   <div className="flex justify-between items-start gap-2">
-                    <div className="font-extrabold text-xs text-slate-900 leading-snug">{item.product.name}</div>
+                    <div>
+                      <div className="font-extrabold text-xs text-slate-900 leading-snug">{item.product.name}</div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBatchModalTarget({
+                            productId: item.product.id,
+                            productName: item.product.name,
+                            selectedBatchId: item.selectedBatchId,
+                          })
+                        }
+                        className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-1.5 py-0.5 rounded cursor-pointer flex items-center gap-1 mt-1 font-mono"
+                      >
+                        <FileText className="h-3 w-3 text-emerald-600" />
+                        <span>
+                          Batch:{' '}
+                          {item.selectedBatchNumber
+                            ? `${item.selectedBatchNumber} (Manual)`
+                            : `Auto (${settings.batchAllocationMethod?.includes('FEFO') ? 'FEFO' : 'FIFO'})`}
+                        </span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </button>
+                    </div>
                     <button
                       onClick={() => removeItem(item.product.id)}
                       className="text-slate-400 hover:text-red-600 p-0.5 cursor-pointer shrink-0"
@@ -622,6 +649,21 @@ export default function PosCheckoutPage() {
         sale={completedSale}
         onClose={() => setCompletedSale(null)}
       />
+
+      {/* Batch Selection Modal */}
+      {batchModalTarget && (
+        <BatchSelectionModal
+          isOpen={Boolean(batchModalTarget)}
+          productId={batchModalTarget.productId}
+          productName={batchModalTarget.productName}
+          selectedBatchId={batchModalTarget.selectedBatchId}
+          onClose={() => setBatchModalTarget(null)}
+          onSelectBatch={(batchId, batchNumber, price) => {
+            updateItemBatch(batchModalTarget.productId, batchId, batchNumber, price);
+            setBatchModalTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,9 @@ import { CashierShiftEntity, CashMovementEntity } from '@/domain/entities/Cashie
 import { SupplierEntity, SupplierPaymentEntity } from '@/domain/entities/Supplier';
 import { InventoryBatchEntity, InventoryBatchTransactionEntity, SaleItemBatchAllocationEntity } from '@/domain/entities/InventoryBatch';
 import { AccountingService } from '@/services/accounting/AccountingService';
+import { PrintQueueService } from '@/services/printing/PrintQueueService';
+import { SessionService } from '@/services/session/SessionService';
+import { realtimeService } from '@/services/realtime/RealtimeService';
 import {
   IProductRepository,
   ISaleRepository,
@@ -364,6 +367,20 @@ export class SQLiteSaleRepository implements ISaleRepository {
     const paidAmount = input.payments.reduce((acc, p) => acc + p.amount, 0);
     const changeAmount = Math.max(0, paidAmount - grandTotal);
 
+    // 0. IDEMPOTENCY CHECK: Return existing sale if clientTransactionId was already processed
+    const existingStmt = db.prepare('SELECT id FROM sales WHERE client_transaction_id = :txId LIMIT 1');
+    existingStmt.bind({ ':txId': input.clientTransactionId });
+    let existingSaleId: string | null = null;
+    if (existingStmt.step()) {
+      existingSaleId = existingStmt.getAsObject().id as string;
+    }
+    existingStmt.free();
+
+    if (existingSaleId) {
+      const existingSale = await this.getById(existingSaleId);
+      if (existingSale) return existingSale;
+    }
+
     // ==========================================
     // EXECUTE ATOMIC SQLITE TRANSACTION
     // ==========================================
@@ -621,8 +638,51 @@ export class SQLiteSaleRepository implements ISaleRepository {
         ]
       );
 
+      // 9. Create Receipt and Queue Print Job automatically inside transaction
+      const { printJobId } = PrintQueueService.createReceiptAndQueuePrint(db, {
+        saleId,
+        invoiceNumber,
+        subtotal,
+        discountAmount: totalDiscount,
+        taxAmount: totalTax,
+        totalAmount: grandTotal,
+        paidAmount,
+        changeAmount,
+        paymentMethod: input.payments[0]?.methodCode || 'CASH',
+        terminalId: input.terminalId,
+        userId: input.userId,
+      });
+
+      // Execute initial print job synchronously inside queue pipeline
+      try {
+        PrintQueueService.processPrintJob(db, printJobId);
+      } catch (err) {
+        console.warn('Print job hardware execution note (sale remains safely committed):', err);
+      }
+
+      // Touch User Session Activity
+      SessionService.touchSession(db, input.userId, input.terminalId);
+
       db.run('COMMIT;');
       saveLocalDbState();
+
+      // Emit Realtime Broadcast Events across windows/tabs
+      try {
+        realtimeService.emit('SALE_CREATED', {
+          saleId,
+          invoiceNumber,
+          totalAmount: grandTotal,
+          userId: input.userId,
+          terminalId: input.terminalId,
+        }, input.userId);
+
+        realtimeService.emit('INVENTORY_UPDATED', {
+          saleId,
+          itemsCount: itemsToInsert.length,
+        }, input.userId);
+      } catch (err) {
+        console.warn('Realtime event dispatch note:', err);
+      }
 
       return (await this.getById(saleId))!;
     } catch (error) {
@@ -1825,5 +1885,313 @@ export class SQLiteInventoryBatchRepository {
     stmt.free();
 
     return { totalItems, totalQuantity, totalValue };
+  }
+
+  async getBatchTransactions(batchId: string): Promise<any[]> {
+    const db = getRawSqlDb();
+    const stmt = db.prepare(
+      `SELECT t.*, u.full_name as user_name, u.username
+       FROM inventory_batch_transactions t
+       LEFT JOIN users u ON t.created_by = u.id
+       WHERE t.batch_id = :bId
+       ORDER BY t.created_at DESC`
+    );
+    stmt.bind({ ':bId': batchId });
+    const list: any[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+      list.push({
+        id: r.id,
+        batchId: r.batch_id,
+        transactionType: r.transaction_type,
+        referenceType: r.reference_type,
+        referenceId: r.reference_id,
+        quantityIn: r.quantity_in,
+        quantityOut: r.quantity_out,
+        unitCost: r.unit_cost,
+        balanceQuantity: r.balance_quantity,
+        createdBy: r.created_by,
+        userName: r.user_name || r.username || 'System Admin',
+        createdAt: r.created_at,
+      });
+    }
+    stmt.free();
+    return list;
+  }
+
+  async getProductStockMovements(productId: string): Promise<any[]> {
+    const db = getRawSqlDb();
+    const stmt = db.prepare(
+      `SELECT m.*, u.full_name as user_name, u.username
+       FROM inventory_movements m
+       LEFT JOIN users u ON m.user_id = u.id
+       WHERE m.product_id = :pId
+       ORDER BY m.created_at DESC`
+    );
+    stmt.bind({ ':pId': productId });
+    const list: any[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+      list.push({
+        id: r.id,
+        productId: r.product_id,
+        movementType: r.movement_type,
+        referenceType: r.reference_type,
+        referenceId: r.reference_id,
+        quantityChange: r.quantity_change,
+        previousQuantity: r.previous_quantity,
+        newQuantity: r.new_quantity,
+        userId: r.user_id,
+        userName: r.user_name || r.username || 'System User',
+        reason: r.reason,
+        createdAt: r.created_at,
+      });
+    }
+    stmt.free();
+    return list;
+  }
+
+  async getProductPurchaseHistory(productId: string): Promise<any[]> {
+    const db = getRawSqlDb();
+    const stmt = db.prepare(
+      `SELECT pi.*, p.invoice_number, p.created_at as purchase_date, s.name as supplier_name, s.id as supplier_id
+       FROM purchase_items pi
+       INNER JOIN purchases p ON pi.purchase_id = p.id
+       LEFT JOIN suppliers s ON p.supplier_id = s.id
+       WHERE pi.product_id = :pId
+       ORDER BY p.created_at DESC`
+    );
+    stmt.bind({ ':pId': productId });
+    const list: any[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+      list.push({
+        id: r.id,
+        purchaseId: r.purchase_id,
+        invoiceNumber: r.invoice_number,
+        purchaseDate: r.purchase_date,
+        supplierId: r.supplier_id,
+        supplierName: r.supplier_name || 'N/A',
+        unitCost: r.unit_cost,
+        quantity: r.quantity,
+        totalCost: r.total_cost,
+      });
+    }
+    stmt.free();
+    return list;
+  }
+
+  async getProductSalesHistory(productId: string): Promise<any[]> {
+    const db = getRawSqlDb();
+    const stmt = db.prepare(
+      `SELECT si.*, s.invoice_number, s.created_at as sale_date
+       FROM sale_items si
+       INNER JOIN sales s ON si.sale_id = s.id
+       WHERE si.product_id = :pId AND s.status != 'VOIDED' AND s.status != 'DELETED'
+       ORDER BY s.created_at DESC`
+    );
+    stmt.bind({ ':pId': productId });
+    const list: any[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+      const saleItemId = r.id as string;
+
+      const allocStmt = db.prepare(
+        `SELECT a.*, b.batch_number
+         FROM sale_item_batch_allocations a
+         LEFT JOIN inventory_batches b ON a.batch_id = b.id
+         WHERE a.sale_item_id = :siId`
+      );
+      allocStmt.bind({ ':siId': saleItemId });
+      const allocs: any[] = [];
+      let actualCogs = 0;
+      while (allocStmt.step()) {
+        const ar = allocStmt.getAsObject();
+        const totalC = (ar.total_cost as number) || (ar.quantity as number) * (ar.unit_cost as number);
+        actualCogs += totalC;
+        allocs.push({
+          batchId: ar.batch_id,
+          batchNumber: ar.batch_number || 'N/A',
+          quantity: ar.quantity,
+          unitCost: ar.unit_cost,
+          totalCost: totalC,
+        });
+      }
+      allocStmt.free();
+
+      const qty = (r.quantity as number) || 0;
+      const unitPrice = (r.unit_price as number) || 0;
+      const totalAmount = (r.total_amount as number) || unitPrice * qty;
+      if (actualCogs === 0 && qty > 0) {
+        actualCogs = ((r.cost_price as number) || 0) * qty;
+      }
+      const margin = totalAmount - actualCogs;
+      const marginPct = totalAmount > 0 ? (margin / totalAmount) * 100 : 0;
+
+      list.push({
+        id: r.id,
+        saleId: r.sale_id,
+        invoiceNumber: r.invoice_number,
+        saleDate: r.sale_date,
+        quantity: r.quantity,
+        unitPrice: r.unit_price,
+        totalAmount,
+        actualCogs,
+        marginAmount: margin,
+        marginPct,
+        allocations: allocs,
+      });
+    }
+    stmt.free();
+    return list;
+  }
+
+  async getProductSupplierHistory(productId: string): Promise<any[]> {
+    const db = getRawSqlDb();
+    const stmt = db.prepare(
+      `SELECT 
+         s.id as supplier_id,
+         s.name as supplier_name,
+         s.code as supplier_code,
+         COUNT(DISTINCT b.purchase_id) as purchases_count,
+         SUM(b.quantity_received) as total_qty_purchased,
+         AVG(b.unit_cost) as avg_purchase_cost,
+         MAX(b.unit_cost) as highest_purchase_cost,
+         MIN(b.unit_cost) as lowest_purchase_cost,
+         MAX(b.received_date) as last_purchase_date
+       FROM inventory_batches b
+       INNER JOIN suppliers s ON b.supplier_id = s.id
+       WHERE b.product_id = :pId
+       GROUP BY s.id, s.name, s.code
+       ORDER BY last_purchase_date DESC`
+    );
+    stmt.bind({ ':pId': productId });
+    const list: any[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+
+      const lastCostStmt = db.prepare(
+        `SELECT unit_cost FROM inventory_batches WHERE product_id = :pId AND supplier_id = :sId ORDER BY received_date DESC LIMIT 1`
+      );
+      lastCostStmt.bind({ ':pId': productId, ':sId': r.supplier_id });
+      let lastPurchaseCost = r.avg_purchase_cost;
+      if (lastCostStmt.step()) {
+        lastPurchaseCost = lastCostStmt.getAsObject().unit_cost;
+      }
+      lastCostStmt.free();
+
+      list.push({
+        supplierId: r.supplier_id,
+        supplierName: r.supplier_name,
+        supplierCode: r.supplier_code,
+        purchasesCount: r.purchases_count,
+        totalQtyPurchased: r.total_qty_purchased,
+        avgPurchaseCost: r.avg_purchase_cost,
+        lastPurchaseCost,
+        highestPurchaseCost: r.highest_purchase_cost,
+        lowestPurchaseCost: r.lowest_purchase_cost,
+        lastPurchaseDate: r.last_purchase_date,
+      });
+    }
+    stmt.free();
+    return list;
+  }
+
+  async adjustBatchStockDetailed(params: {
+    batchId: string;
+    productId: string;
+    adjustmentType: 'INCREASE' | 'DECREASE' | 'DAMAGE' | 'EXPIRED' | 'MISSING' | 'FOUND' | 'CORRECTION';
+    quantity: number;
+    reason: string;
+    notes?: string;
+    userId: string;
+  }): Promise<void> {
+    const db = getRawSqlDb();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare('SELECT * FROM inventory_batches WHERE id = :id LIMIT 1');
+    stmt.bind({ ':id': params.batchId });
+    if (!stmt.step()) {
+      stmt.free();
+      throw new Error('Inventory batch not found.');
+    }
+    const b = stmt.getAsObject();
+    stmt.free();
+
+    const prevQty = (b.quantity_remaining as number) || 0;
+    const isReduction = ['DECREASE', 'DAMAGE', 'EXPIRED', 'MISSING'].includes(params.adjustmentType);
+    const delta = isReduction ? -Math.abs(params.quantity) : Math.abs(params.quantity);
+    const newQty = Math.max(0, prevQty + delta);
+    const newStatus = newQty <= 0 ? 'DEPLETED' : (params.adjustmentType === 'EXPIRED' ? 'EXPIRED' : (b.status as string || 'ACTIVE'));
+    const unitCost = (b.unit_cost as number) || 0;
+
+    db.run('BEGIN TRANSACTION;');
+    try {
+      db.run(
+        `UPDATE inventory_batches SET quantity_remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+        [newQty, newStatus, now, params.batchId]
+      );
+
+      const txType = params.adjustmentType === 'DAMAGE' ? 'DAMAGE' : params.adjustmentType === 'EXPIRED' ? 'EXPIRED' : 'ADJUSTMENT';
+
+      db.run(
+        `INSERT INTO inventory_batch_transactions (id, batch_id, transaction_type, reference_type, reference_id, quantity_in, quantity_out, unit_cost, balance_quantity, created_by, created_at)
+         VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `ibtx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          params.batchId,
+          txType,
+          params.batchId,
+          delta > 0 ? delta : 0,
+          delta < 0 ? Math.abs(delta) : 0,
+          unitCost,
+          newQty,
+          params.userId,
+          now,
+        ]
+      );
+
+      db.run('UPDATE products SET stock_quantity = stock_quantity + ?, updated_at = ? WHERE id = ?', [delta, now, params.productId]);
+      db.run('UPDATE inventory SET quantity = quantity + ?, updated_at = ? WHERE product_id = ?', [delta, now, params.productId]);
+
+      const movReason = `Stock Adjustment (${params.adjustmentType}): ${params.reason}${params.notes ? ` - ${params.notes}` : ''}`;
+      db.run(
+        `INSERT INTO inventory_movements (id, branch_id, product_id, movement_type, reference_type, reference_id, quantity_change, previous_quantity, new_quantity, user_id, reason, created_at)
+         VALUES (?, 'branch-001', ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `mov-adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          params.productId,
+          params.adjustmentType,
+          params.batchId,
+          delta,
+          prevQty,
+          newQty,
+          params.userId,
+          movReason,
+          now,
+        ]
+      );
+
+      AccountingService.recordStockAdjustment(db, {
+        adjustmentId: `adj-${Date.now()}`,
+        userId: params.userId,
+        quantityChange: delta,
+        unitCost,
+        reason: movReason,
+      });
+
+      db.run('COMMIT;');
+      saveLocalDbState();
+    } catch (e) {
+      db.run('ROLLBACK;');
+      throw e;
+    }
+  }
+
+  async toggleBatchStatus(batchId: string, status: 'ACTIVE' | 'BLOCKED' | 'DEPLETED' | 'EXPIRED'): Promise<void> {
+    const db = getRawSqlDb();
+    const now = new Date().toISOString();
+    db.run('UPDATE inventory_batches SET status = ?, updated_at = ? WHERE id = ?', [status, now, batchId]);
+    saveLocalDbState();
   }
 }

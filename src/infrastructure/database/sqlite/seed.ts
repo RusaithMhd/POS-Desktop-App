@@ -361,6 +361,37 @@ export function ensurePermissionsMigrated(db: Database) {
       `);
     }
 
+    const checkProd = db.prepare("SELECT count(*) as cnt FROM products");
+    let prodCount = 0;
+    if (checkProd.step()) {
+      prodCount = Number(checkProd.getAsObject().cnt || 0);
+    }
+    checkProd.free();
+
+    if (prodCount === 0) {
+      const productsList = [
+        { id: 'prod-001', cat: 'cat-bev', name: 'Espresso Coffee Beans 1kg', sku: 'SKU-BEV-001', barcode: '890100010001', cost: 3500.00, price: 6500.00, stock: 45, unit: 'unit-kg' },
+        { id: 'prod-002', cat: 'cat-bev', name: 'Organic Almond Milk 1L', sku: 'SKU-BEV-002', barcode: '890100010002', cost: 450.00, price: 850.00, stock: 120, unit: 'unit-ltr' },
+        { id: 'prod-003', cat: 'cat-bev', name: 'Sparkling Mineral Water 500ml', sku: 'SKU-BEV-003', barcode: '890100010003', cost: 150.00, price: 350.00, stock: 200, unit: 'unit-pcs' },
+        { id: 'prod-004', cat: 'cat-bakery', name: 'Artisan Butter Croissant', sku: 'SKU-BAK-001', barcode: '890100010004', cost: 200.00, price: 450.00, stock: 35, unit: 'unit-pcs' },
+        { id: 'prod-005', cat: 'cat-bakery', name: 'Chocolate Chip Cookie 6-Pack', sku: 'SKU-BAK-002', barcode: '890100010005', cost: 400.00, price: 950.00, stock: 50, unit: 'unit-pack' },
+        { id: 'prod-006', cat: 'cat-dairy', name: 'Greek Yogurt Vanilla 500g', sku: 'SKU-DAI-001', barcode: '890100010006', cost: 500.00, price: 1150.00, stock: 60, unit: 'unit-pcs' },
+        { id: 'prod-007', cat: 'cat-dairy', name: 'Aged Cheddar Cheese Slice 200g', sku: 'SKU-DAI-002', barcode: '890100010007', cost: 800.00, price: 1650.00, stock: 40, unit: 'unit-pcs' },
+        { id: 'prod-008', cat: 'cat-elec', name: 'USB-C Fast Charging Cable 2m', sku: 'SKU-ELE-001', barcode: '890100010008', cost: 900.00, price: 2200.00, stock: 80, unit: 'unit-pcs' },
+        { id: 'prod-009', cat: 'cat-elec', name: 'Wireless Bluetooth Earbuds Pro', sku: 'SKU-ELE-002', barcode: '890100010009', cost: 4500.00, price: 12500.00, stock: 25, unit: 'unit-box' },
+        { id: 'prod-010', cat: 'cat-house', name: 'Eco Bamboo Facial Tissues 3-Pack', sku: 'SKU-HOU-001', barcode: '890100010010', cost: 350.00, price: 750.00, stock: 90, unit: 'unit-pack' },
+        { id: 'prod-011', cat: 'cat-house', name: 'Antibacterial Hand Sanitizer 250ml', sku: 'SKU-HOU-002', barcode: '890100010011', cost: 250.00, price: 550.00, stock: 150, unit: 'unit-pcs' },
+        { id: 'prod-012', cat: 'cat-bev', name: 'Fresh Cold Pressed Orange Juice 330ml', sku: 'SKU-BEV-004', barcode: '890100010012', cost: 300.00, price: 650.00, stock: 4, unit: 'unit-pcs' },
+      ];
+
+      for (const p of productsList) {
+        db.run(`
+          INSERT OR IGNORE INTO products (id, business_id, category_id, unit_id, name, sku, barcode, brand, description, cost_price, selling_price, tax_rate, stock_quantity, min_stock_level, reorder_level, track_inventory, is_active, created_at, updated_at)
+          VALUES ('${p.id}', 'biz-001', '${p.cat}', '${p.unit}', '${p.name}', '${p.sku}', '${p.barcode}', 'TRIWYN Brand', '${p.name} premium quality product', ${p.cost}, ${p.price}, 8.0, ${p.stock}, 10, 15, 1, 1, '${now}', '${now}');
+        `);
+      }
+    }
+
     seedAccountingData(db);
   } catch (err) {
     console.error('Failed to sync permissions migration:', err);
@@ -369,6 +400,9 @@ export function ensurePermissionsMigrated(db: Database) {
 
 export function seedAccountingData(db: Database) {
   const now = new Date().toISOString();
+
+  try { db.run('ALTER TABLE permissions ADD COLUMN module TEXT DEFAULT "general";'); } catch {}
+  try { db.run('ALTER TABLE permissions ADD COLUMN action_type TEXT DEFAULT "VIEW";'); } catch {}
 
   // Create tables if missing (migration safety)
   db.run(`
