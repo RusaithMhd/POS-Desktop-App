@@ -185,15 +185,90 @@ export const customerAddresses = sqliteTable('customer_addresses', {
 export const suppliers = sqliteTable('suppliers', {
   id: text('id').primaryKey(),
   businessId: text('business_id').notNull().references(() => businesses.id),
+  code: text('code').notNull().unique(),
   name: text('name').notNull(),
+  companyName: text('company_name'),
   contactPerson: text('contact_person'),
   phone: text('phone'),
   email: text('email'),
   address: text('address'),
-  taxId: text('tax_id'),
+  taxNumber: text('tax_number'),
+  paymentTerms: text('payment_terms').default('30 Days'),
+  creditLimit: real('credit_limit').notNull().default(0),
+  openingBalance: real('opening_balance').notNull().default(0),
+  currentOutstanding: real('current_outstanding').notNull().default(0),
+  status: text('status').notNull().default('ACTIVE'),
+  notes: text('notes'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const inventoryBatches = sqliteTable('inventory_batches', {
+  id: text('id').primaryKey(),
+  productId: text('product_id').notNull().references(() => products.id),
+  supplierId: text('supplier_id').references(() => suppliers.id),
+  purchaseId: text('purchase_id').references(() => purchases.id),
+  purchaseItemId: text('purchase_item_id'),
+  batchNumber: text('batch_number').notNull(),
+  supplierBatchNumber: text('supplier_batch_number'),
+  unitCost: real('unit_cost').notNull(),
+  quantityReceived: real('quantity_received').notNull(),
+  quantityRemaining: real('quantity_remaining').notNull(),
+  manufacturingDate: text('manufacturing_date'),
+  expiryDate: text('expiry_date'),
+  receivedDate: text('received_date').notNull(),
+  warehouseId: text('warehouse_id'),
+  status: text('status').notNull().default('ACTIVE'), // 'ACTIVE', 'DEPLETED', 'EXPIRED', 'BLOCKED', 'RETURNED'
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  productIdx: index('inv_batches_product_idx').on(table.productId),
+  supplierIdx: index('inv_batches_supplier_idx').on(table.supplierId),
+  batchNumIdx: index('inv_batches_number_idx').on(table.batchNumber),
+  statusIdx: index('inv_batches_status_idx').on(table.status),
+}));
+
+export const inventoryBatchTransactions = sqliteTable('inventory_batch_transactions', {
+  id: text('id').primaryKey(),
+  batchId: text('batch_id').notNull().references(() => inventoryBatches.id),
+  transactionType: text('transaction_type').notNull(), // 'PURCHASE', 'SALE', 'SALES_RETURN', 'PURCHASE_RETURN', 'ADJUSTMENT', 'DAMAGE', 'EXPIRED', 'TRANSFER'
+  referenceType: text('reference_type'), // 'sale', 'purchase', 'adjustment', 'return'
+  referenceId: text('reference_id'),
+  quantityIn: real('quantity_in').notNull().default(0),
+  quantityOut: real('quantity_out').notNull().default(0),
+  unitCost: real('unit_cost').notNull(),
+  balanceQuantity: real('balance_quantity').notNull(),
+  createdBy: text('created_by'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  batchIdx: index('inv_batch_tx_batch_idx').on(table.batchId),
+  refIdx: index('inv_batch_tx_ref_idx').on(table.referenceId),
+}));
+
+export const saleItemBatchAllocations = sqliteTable('sale_item_batch_allocations', {
+  id: text('id').primaryKey(),
+  saleItemId: text('sale_item_id').notNull().references(() => saleItems.id),
+  batchId: text('batch_id').notNull().references(() => inventoryBatches.id),
+  quantity: real('quantity').notNull(),
+  unitCost: real('unit_cost').notNull(),
+  totalCost: real('total_cost').notNull(),
+}, (table) => ({
+  saleItemIdx: index('sale_item_batch_sale_item_idx').on(table.saleItemId),
+  batchIdx: index('sale_item_batch_batch_idx').on(table.batchId),
+}));
+
+export const supplierPayments = sqliteTable('supplier_payments', {
+  id: text('id').primaryKey(),
+  supplierId: text('supplier_id').notNull().references(() => suppliers.id),
+  purchaseId: text('purchase_id').references(() => purchases.id),
+  amount: real('amount').notNull(),
+  paymentMethod: text('payment_method').notNull().default('CASH'), // 'CASH', 'BANK_TRANSFER', 'CHEQUE'
+  referenceNumber: text('reference_number'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  supplierIdx: index('supplier_payments_supplier_idx').on(table.supplierId),
+}));
 
 // ----------------------------------------------------------------------
 // 4. PURCHASES & INVENTORY MOVEMENTS (LEDGER)

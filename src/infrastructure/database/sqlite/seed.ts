@@ -277,6 +277,11 @@ export function seedInitialData(db: Database) {
     ('set-002', 'biz-001', 'branch-001', 'term-001', 'receipt_footer', '"Thank you for shopping with TRIWYN POS!\\nPlease come again."', '${now}'),
     ('set-003', 'biz-001', 'branch-001', 'term-001', 'auto_print_receipt', 'true', '${now}'),
     ('set-004', 'biz-001', 'branch-001', 'term-001', 'sound_effects', 'true', '${now}');
+
+    INSERT OR IGNORE INTO suppliers (id, business_id, code, name, company_name, contact_person, phone, email, address, tax_number, payment_terms, credit_limit, opening_balance, current_outstanding, status, notes, created_at, updated_at) VALUES
+    ('sup-001', 'biz-001', 'SUP-0001', 'ABC Distributors Ltd', 'ABC Holdings PLC', 'Mohamed Rishad', '+94 77 123 4567', 'orders@abcdistributors.lk', '45 Industrial Zone, Colombo 10', 'VAT-998877', '30 Days', 500000.0, 0.0, 0.0, 'ACTIVE', 'Primary FMCG Supplier', '${now}', '${now}'),
+    ('sup-002', 'biz-001', 'SUP-0002', 'Ceylon Wholesale Traders', 'Ceylon Traders Ltd', 'Samantha Perera', '+94 71 987 6543', 'sales@ceylontraders.lk', '12 Main Street, Pettah, Colombo 11', 'VAT-554433', '15 Days', 300000.0, 0.0, 0.0, 'ACTIVE', 'Beverage & Dairy Supplier', '${now}', '${now}'),
+    ('sup-003', 'biz-001', 'SUP-0003', 'Lanka Imports & Logistics', 'Lanka Imports Pvt Ltd', 'Kavinda Silva', '+94 11 456 7890', 'info@lankaimports.lk', '88 Port Road, Colombo 13', 'VAT-112233', '30 Days', 750000.0, 0.0, 0.0, 'ACTIVE', 'Electronics & Household Imports', '${now}', '${now}');
   `);
 }
 
@@ -339,6 +344,22 @@ export function ensurePermissionsMigrated(db: Database) {
       ('role-cashier', 'p-shift-open'),
       ('role-cashier', 'p-shift-close');
     `);
+
+    const checkSupp = db.prepare("SELECT count(*) as cnt FROM suppliers");
+    let suppCount = 0;
+    if (checkSupp.step()) {
+      suppCount = Number(checkSupp.getAsObject().cnt || 0);
+    }
+    checkSupp.free();
+
+    if (suppCount === 0) {
+      db.run(`
+        INSERT OR IGNORE INTO suppliers (id, business_id, code, name, company_name, contact_person, phone, email, address, tax_number, payment_terms, credit_limit, opening_balance, current_outstanding, status, notes, created_at, updated_at) VALUES
+        ('sup-001', 'biz-001', 'SUP-0001', 'ABC Distributors Ltd', 'ABC Holdings PLC', 'Mohamed Rishad', '+94 77 123 4567', 'orders@abcdistributors.lk', '45 Industrial Zone, Colombo 10', 'VAT-998877', '30 Days', 500000.0, 0.0, 0.0, 'ACTIVE', 'Primary FMCG Supplier', '${now}', '${now}'),
+        ('sup-002', 'biz-001', 'SUP-0002', 'Ceylon Wholesale Traders', 'Ceylon Traders Ltd', 'Samantha Perera', '+94 71 987 6543', 'sales@ceylontraders.lk', '12 Main Street, Pettah, Colombo 11', 'VAT-554433', '15 Days', 300000.0, 0.0, 0.0, 'ACTIVE', 'Beverage & Dairy Supplier', '${now}', '${now}'),
+        ('sup-003', 'biz-001', 'SUP-0003', 'Lanka Imports & Logistics', 'Lanka Imports Pvt Ltd', 'Kavinda Silva', '+94 11 456 7890', 'info@lankaimports.lk', '88 Port Road, Colombo 13', 'VAT-112233', '30 Days', 750000.0, 0.0, 0.0, 'ACTIVE', 'Electronics & Household Imports', '${now}', '${now}');
+      `);
+    }
 
     seedAccountingData(db);
   } catch (err) {

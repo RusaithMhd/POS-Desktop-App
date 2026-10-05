@@ -190,7 +190,7 @@ export class AccountingService {
     const now = new Date().toISOString();
     const dateStr = entryHeader.transactionDate || now;
     const journalId = `jnl-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const journalNumber = `JNL-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+    const journalNumber = `JNL-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     // 2. Insert Entry Header
     db.run(

@@ -70,10 +70,12 @@ export async function getLocalDb() {
     if (savedData) {
       rawDb = new SQL.Database(savedData);
       ensurePermissionsMigrated(rawDb);
+      ensureOpeningBatchesExist(rawDb);
     } else {
       rawDb = new SQL.Database();
       createTables(rawDb);
       seedInitialData(rawDb);
+      ensureOpeningBatchesExist(rawDb);
       saveDatabaseToStorage(rawDb);
     }
 
@@ -98,6 +100,11 @@ export function getRawSqlDb(): Database {
     throw new Error('Database not initialized yet.');
   }
   return rawDb;
+}
+
+export function setTestRawSqlDb(testDb: Database) {
+  rawDb = testDb;
+  ensureOpeningBatchesExist(testDb);
 }
 
 function saveDatabaseToStorage(db: Database) {
@@ -329,14 +336,77 @@ function createTables(db: Database) {
     CREATE TABLE IF NOT EXISTS suppliers (
       id TEXT PRIMARY KEY,
       business_id TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
+      company_name TEXT,
       contact_person TEXT,
       phone TEXT,
       email TEXT,
       address TEXT,
       tax_id TEXT,
+      tax_number TEXT,
+      payment_terms TEXT DEFAULT '30 Days',
+      credit_limit REAL NOT NULL DEFAULT 0,
+      opening_balance REAL NOT NULL DEFAULT 0,
+      current_outstanding REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      notes TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_batches (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL REFERENCES products(id),
+      supplier_id TEXT REFERENCES suppliers(id),
+      purchase_id TEXT REFERENCES purchases(id),
+      purchase_item_id TEXT,
+      batch_number TEXT NOT NULL,
+      supplier_batch_number TEXT,
+      unit_cost REAL NOT NULL,
+      quantity_received REAL NOT NULL,
+      quantity_remaining REAL NOT NULL,
+      manufacturing_date TEXT,
+      expiry_date TEXT,
+      received_date TEXT NOT NULL,
+      warehouse_id TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_batch_transactions (
+      id TEXT PRIMARY KEY,
+      batch_id TEXT NOT NULL REFERENCES inventory_batches(id),
+      transaction_type TEXT NOT NULL,
+      reference_type TEXT,
+      reference_id TEXT,
+      quantity_in REAL NOT NULL DEFAULT 0,
+      quantity_out REAL NOT NULL DEFAULT 0,
+      unit_cost REAL NOT NULL,
+      balance_quantity REAL NOT NULL,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sale_item_batch_allocations (
+      id TEXT PRIMARY KEY,
+      sale_item_id TEXT NOT NULL REFERENCES sale_items(id),
+      batch_id TEXT NOT NULL REFERENCES inventory_batches(id),
+      quantity REAL NOT NULL,
+      unit_cost REAL NOT NULL,
+      total_cost REAL NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS supplier_payments (
+      id TEXT PRIMARY KEY,
+      supplier_id TEXT NOT NULL REFERENCES suppliers(id),
+      purchase_id TEXT REFERENCES purchases(id),
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL DEFAULT 'CASH',
+      reference_number TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS purchases (
@@ -684,6 +754,109 @@ function createTables(db: Database) {
   try { db.run('ALTER TABLE sales ADD COLUMN deleted_by TEXT;'); } catch {}
   try { db.run('ALTER TABLE sales ADD COLUMN delete_reason TEXT;'); } catch {}
 
+  try { db.run('ALTER TABLE suppliers ADD COLUMN code TEXT;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN company_name TEXT;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN tax_number TEXT;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN payment_terms TEXT DEFAULT "30 Days";'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN credit_limit REAL DEFAULT 0;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN opening_balance REAL DEFAULT 0;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN current_outstanding REAL DEFAULT 0;'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT "ACTIVE";'); } catch {}
+  try { db.run('ALTER TABLE suppliers ADD COLUMN notes TEXT;'); } catch {}
+
   seedAccountingData(db);
+  ensureOpeningBatchesExist(db);
+}
+
+export function ensureOpeningBatchesExist(db: Database) {
+  try {
+    const now = new Date().toISOString();
+    const prodStmt = db.prepare('SELECT id, name, sku, cost_price, stock_quantity, created_at FROM products WHERE stock_quantity > 0');
+    const prodsToMigrate: Array<{ id: string; name: string; costPrice: number; stockQuantity: number; createdAt: string }> = [];
+    while (prodStmt.step()) {
+      const row = prodStmt.getAsObject();
+      prodsToMigrate.push({
+        id: row.id as string,
+        name: row.name as string,
+        costPrice: (row.cost_price as number) || 0,
+        stockQuantity: (row.stock_quantity as number) || 0,
+        createdAt: (row.created_at as string) || now,
+      });
+    }
+    prodStmt.free();
+
+    for (const prod of prodsToMigrate) {
+      const batchCheck = db.prepare('SELECT COUNT(*) as cnt FROM inventory_batches WHERE product_id = :pId');
+      batchCheck.bind({ ':pId': prod.id });
+      let count = 0;
+      if (batchCheck.step()) {
+        count = (batchCheck.getAsObject().cnt as number) || 0;
+      }
+      batchCheck.free();
+
+      if (count === 0) {
+        const batchId = `batch-open-${prod.id}`;
+        const batchNumber = `OPENING-000001`;
+        db.run(
+          `INSERT INTO inventory_batches (id, product_id, supplier_id, purchase_id, purchase_item_id, batch_number, supplier_batch_number, unit_cost, quantity_received, quantity_remaining, received_date, status, created_at, updated_at)
+           VALUES (?, ?, NULL, NULL, NULL, ?, 'OPENING_STOCK', ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
+          [
+            batchId,
+            prod.id,
+            batchNumber,
+            prod.costPrice,
+            prod.stockQuantity,
+            prod.stockQuantity,
+            prod.createdAt,
+            now,
+            now,
+          ]
+        );
+
+        db.run(
+          `INSERT INTO inventory_batch_transactions (id, batch_id, transaction_type, reference_type, reference_id, quantity_in, quantity_out, unit_cost, balance_quantity, created_by, created_at)
+           VALUES (?, ?, 'PURCHASE', 'opening_stock', ?, ?, 0, ?, ?, 'system', ?)`,
+          [
+            `tx-open-${prod.id}`,
+            batchId,
+            prod.id,
+            prod.stockQuantity,
+            prod.costPrice,
+            prod.stockQuantity,
+            now,
+          ]
+        );
+      } else {
+        const sumStmt = db.prepare('SELECT SUM(quantity_remaining) as total_rem FROM inventory_batches WHERE product_id = :pId AND status = "ACTIVE"');
+        sumStmt.bind({ ':pId': prod.id });
+        let totalRem = 0;
+        if (sumStmt.step()) {
+          totalRem = (sumStmt.getAsObject().total_rem as number) || 0;
+        }
+        sumStmt.free();
+
+        if (prod.stockQuantity > totalRem) {
+          const diff = prod.stockQuantity - totalRem;
+          const openBatchCheck = db.prepare('SELECT id, quantity_remaining FROM inventory_batches WHERE product_id = :pId AND supplier_batch_number = "OPENING_STOCK" LIMIT 1');
+          openBatchCheck.bind({ ':pId': prod.id });
+          if (openBatchCheck.step()) {
+            const ob = openBatchCheck.getAsObject();
+            const newRem = ((ob.quantity_remaining as number) || 0) + diff;
+            db.run('UPDATE inventory_batches SET quantity_remaining = ?, status = "ACTIVE", updated_at = ? WHERE id = ?', [newRem, now, ob.id]);
+          } else {
+            const batchId = `batch-open-${prod.id}-${Date.now()}`;
+            db.run(
+              `INSERT INTO inventory_batches (id, product_id, supplier_id, purchase_id, purchase_item_id, batch_number, supplier_batch_number, unit_cost, quantity_received, quantity_remaining, received_date, status, created_at, updated_at)
+               VALUES (?, ?, NULL, NULL, NULL, 'OPENING-000001', 'OPENING_STOCK', ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
+              [batchId, prod.id, prod.costPrice, diff, diff, now, now, now]
+            );
+          }
+          openBatchCheck.free();
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Opening stock batch migration error:', e);
+  }
 }
 
