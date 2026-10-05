@@ -1,0 +1,45 @@
+{
+  "appId": "com.triwynpos.desktop",
+  "productName": "TRIWYN POS",
+  "copyright": "Copyright © 2026 TRIWYN POS Technologies",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "electron/**/*",
+    "public/**/*",
+    "out/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/Assets/Icon.png",
+    "artifactName": "${productName}_Setup_${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "TRIWYN POS"
+  },
+  "fileAssociations": [
+    {
+      "ext": "posbak",
+      "name": "TRIWYN POS Database Backup File",
+      "description": "Native SQLite Database Backup for TRIWYN POS",
+      "icon": "public/Assets/Icon.png",
+      "role": "Editor"
+    }
+  ]
+}
