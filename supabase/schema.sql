@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.registered_devices (
 CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
     id TEXT PRIMARY KEY,
     admin_user_id TEXT NOT NULL,
-    admin_email TEXT DEFAULT 'admin@triwyn.com',
+    admin_email TEXT,
     action TEXT NOT NULL,
     entity_type TEXT DEFAULT 'ORGANIZATION',
     entity_id TEXT,

@@ -6,3 +6,14 @@ tsconfig.tsbuildinfo
 *.log
 public/downloads/*.exe
 public/downloads/*.zip
+
+# Local environment variables
+.env
+.env*.local
+!.env.example
+
+# Local SQLite databases
+*.sqlite
+*.sqlite3
+triwyn_pos.sqlite
+triwyn_pos.sqlite-journal

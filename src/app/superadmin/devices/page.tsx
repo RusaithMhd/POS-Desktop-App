@@ -46,7 +46,7 @@ export default function DevicesManagementPage() {
 
   const handleApprove = (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
-    const adminId = adminSession?.email || 'admin@triwyn.com';
+    const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
     const svc = new DeviceLicenseService(raw);
     const ok = svc.approveDevice(devId, adminId);
@@ -60,7 +60,7 @@ export default function DevicesManagementPage() {
 
   const handleSuspend = (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
-    const adminId = adminSession?.email || 'admin@triwyn.com';
+    const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
     const svc = new DeviceLicenseService(raw);
     const ok = svc.suspendDevice(devId, 'Suspended by Super Admin', adminId);
@@ -74,7 +74,7 @@ export default function DevicesManagementPage() {
 
   const handleRevoke = (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
-    const adminId = adminSession?.email || 'admin@triwyn.com';
+    const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
     const svc = new DeviceLicenseService(raw);
     const ok = svc.revokeDevice(devId, 'Permanent revocation by Super Admin', adminId);

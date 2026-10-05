@@ -162,7 +162,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
 
     // Ensure admin tables and seed test super admin
     ensureAdminTables(db);
-    AdminAuthService.setupInitialSuperAdmin('admin@triwyn.com', 'SuperAdmin@2026!', 'Test Super Admin');
+    AdminAuthService.setupInitialSuperAdmin('test_admin@triwynpos.lk', 'TestPassword123!', 'Test Super Admin');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -252,8 +252,8 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
   // ─────────────────────────────────────────────────────────────────────────────
 
   it('4. Super Admin can authenticate with initial seeded credentials', async () => {
-    const session = await AdminAuthService.login('admin@triwyn.com', 'SuperAdmin@2026!');
-    expect(session.email).toBe('admin@triwyn.com');
+    const session = await AdminAuthService.login('test_admin@triwynpos.lk', 'TestPassword123!');
+    expect(session.email).toBe('test_admin@triwynpos.lk');
     expect(session.role).toBe('SUPER_ADMIN');
     expect(session.sessionToken).toBeDefined();
     expect(session.permissions).toContain('*');
@@ -261,10 +261,10 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
 
   it('5. Super Admin login fails with incorrect password and records attempts', async () => {
     await expect(
-      AdminAuthService.login('admin@triwyn.com', 'WrongPassword123')
+      AdminAuthService.login('test_admin@triwynpos.lk', 'WrongPassword123')
     ).rejects.toThrow(/Invalid credentials/i);
 
-    const stmt = db.prepare('SELECT failed_login_attempts FROM admin_users WHERE email = "admin@triwyn.com"');
+    const stmt = db.prepare('SELECT failed_login_attempts FROM admin_users WHERE email = "test_admin@triwynpos.lk"');
     stmt.step();
     expect(stmt.getAsObject().failed_login_attempts).toBe(1);
     stmt.free();
@@ -294,7 +294,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
     expect(preApproval.reason).toBe('PENDING_APPROVAL');
 
     // Super Admin signs in and approves
-    const adminSession = await AdminAuthService.login('admin@triwyn.com', 'SuperAdmin@2026!');
+    const adminSession = await AdminAuthService.login('test_admin@triwynpos.lk', 'TestPassword123!');
     const approved = CustomerRegistrationService.approveSubscription(regRes.organizationId, adminSession.id);
     expect(approved).toBe(true);
 
@@ -317,7 +317,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
     const reg = CustomerRegistrationService.getRegistrationByEmail('sunil@cafe.lk');
     CustomerRegistrationService.verifyEmail('sunil@cafe.lk', reg?.email_verification_token as string);
 
-    const adminSession = await AdminAuthService.login('admin@triwyn.com', 'SuperAdmin@2026!');
+    const adminSession = await AdminAuthService.login('test_admin@triwynpos.lk', 'TestPassword123!');
     const extended = CustomerRegistrationService.extendTrial(regRes.organizationId, 30, adminSession.id, 'Customer requested more evaluation time');
     expect(extended).toBe(true);
 
@@ -339,7 +339,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
     const reg = CustomerRegistrationService.getRegistrationByEmail('dave@store.lk');
     CustomerRegistrationService.verifyEmail('dave@store.lk', reg?.email_verification_token as string);
 
-    const adminSession = await AdminAuthService.login('admin@triwyn.com', 'SuperAdmin@2026!');
+    const adminSession = await AdminAuthService.login('test_admin@triwynpos.lk', 'TestPassword123!');
 
     // 1. Suspend
     CustomerRegistrationService.suspendOrganization(regRes.organizationId, 'Breach of payment policy', adminSession.id);
@@ -364,7 +364,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
       billingCycle: 'MONTHLY',
     });
 
-    const adminSession = await AdminAuthService.login('admin@triwyn.com', 'SuperAdmin@2026!');
+    const adminSession = await AdminAuthService.login('test_admin@triwynpos.lk', 'TestPassword123!');
     // Upgrade directly to BUSINESS tier
     const changed = CustomerRegistrationService.changeOrganizationPlan(regRes.organizationId, 'BUSINESS', adminSession.id);
     expect(changed).toBe(true);
@@ -431,7 +431,7 @@ describe('SaaS Subscription, Registration & Super Admin Architecture', () => {
     expect(dev2Req.status).toBe('PENDING_APPROVAL');
 
     // Super Admin approves the device explicitly
-    const approved = deviceSvc.approveDevice(dev2Req.licenseId, 'admin@triwyn.com');
+    const approved = deviceSvc.approveDevice(dev2Req.licenseId, 'test_admin@triwynpos.lk');
     expect(approved).toBe(true);
 
     const dev2Check = deviceSvc.getDeviceLicenseById(dev2Req.licenseId);

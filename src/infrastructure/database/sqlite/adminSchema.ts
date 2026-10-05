@@ -77,6 +77,11 @@ export function ensureAdminTables(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_customer_reg_status ON customer_registrations(status);
   `);
 
+  // Clean up any legacy default credentials
+  try {
+    db.run("DELETE FROM admin_users WHERE email = 'admin@triwyn.com'");
+  } catch {}
+
   // Only seed initial superadmin if explicitly provided via environment variables
   ensureInitialSuperAdmin(db);
 }
