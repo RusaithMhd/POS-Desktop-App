@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Database } from 'sql.js';
 import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -63,6 +64,27 @@ export class AdminAuthService {
   // INITIAL ADMIN CHECK & CUSTOM SETUP (No default credentials)
   // ---------------------------------------------------------------------------
 
+  static async hasAnyAdminUsersAsync(): Promise<boolean> {
+    try {
+      const db = getRawSqlDb();
+      ensureAdminTables(db);
+      const stmt = db.prepare('SELECT COUNT(*) as cnt FROM admin_users WHERE is_active = 1');
+      let cnt = 0;
+      if (stmt.step()) cnt = (stmt.getAsObject().cnt as number) || 0;
+      stmt.free();
+      if (cnt > 0) return true;
+
+      // Fallback: Check Supabase Cloud
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.from('admin_users').select('id').eq('is_active', 1).limit(1);
+        if (!error && data && data.length > 0) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   static hasAnyAdminUsers(): boolean {
     try {
       const db = getRawSqlDb();
@@ -89,6 +111,25 @@ export class AdminAuthService {
       [id, email.toLowerCase().trim(), hash, fullName, now, now]
     );
     saveLocalDbState();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('admin_users').upsert({
+          id,
+          email: email.toLowerCase().trim(),
+          password_hash: hash,
+          full_name: fullName,
+          role: 'SUPER_ADMIN',
+          is_active: 1,
+          mfa_enabled: 0,
+          created_at: now,
+          updated_at: now,
+        });
+      } catch (e) {
+        console.warn('[Supabase Cloud] Admin user sync warning:', e);
+      }
+    }
+
     return this.login(email, password);
   }
 
@@ -100,14 +141,41 @@ export class AdminAuthService {
     const db = getRawSqlDb();
     ensureAdminTables(db);
 
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check Cloud Supabase First or Fallback to sync
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: cloudAdmin } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('email', cleanEmail)
+          .eq('is_active', 1)
+          .maybeSingle();
+
+        if (cloudAdmin) {
+          const isValidCloud = bcrypt.compareSync(password, cloudAdmin.password_hash as string);
+          if (isValidCloud) {
+            db.run(
+              `INSERT OR REPLACE INTO admin_users (id, email, password_hash, full_name, role, is_active, mfa_enabled, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?)`,
+              [cloudAdmin.id, cloudAdmin.email, cloudAdmin.password_hash, cloudAdmin.full_name || 'Super Admin', cloudAdmin.role || 'SUPER_ADMIN', cloudAdmin.created_at || new Date().toISOString(), new Date().toISOString()]
+            );
+            saveLocalDbState();
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase Cloud] Admin cloud login check fallback:', err);
+      }
+    }
+
     const stmt = db.prepare(
       `SELECT * FROM admin_users WHERE email = :email AND is_active = 1 LIMIT 1`
     );
-    stmt.bind({ ':email': email.trim().toLowerCase() });
+    stmt.bind({ ':email': cleanEmail });
 
     if (!stmt.step()) {
       stmt.free();
-      // Generic error — don't reveal if email exists
       throw new Error('Invalid credentials.');
     }
 

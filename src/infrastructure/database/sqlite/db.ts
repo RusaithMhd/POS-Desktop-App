@@ -71,11 +71,13 @@ export async function getLocalDb() {
     if (savedData) {
       rawDb = new SQL.Database(savedData);
       createTables(rawDb);
+      ensureAdminTables(rawDb);
       ensurePermissionsMigrated(rawDb);
       ensureOpeningBatchesExist(rawDb);
     } else {
       rawDb = new SQL.Database();
       createTables(rawDb);
+      ensureAdminTables(rawDb);
       seedInitialData(rawDb);
       ensureOpeningBatchesExist(rawDb);
       saveDatabaseToStorage(rawDb);

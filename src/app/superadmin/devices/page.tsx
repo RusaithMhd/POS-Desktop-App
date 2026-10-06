@@ -9,6 +9,7 @@ import { AdminAuthGuard, AdminHeader } from '@/components/auth/AdminAuthGuard';
 import { AdminAuthService } from '@/services/auth/AdminAuthService';
 import { DeviceLicenseService, DeviceLicense, DeviceRegistrationRequest } from '@/services/licensing/DeviceLicenseService';
 import { getLocalDb, getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 export default function DevicesManagementPage() {
   const [devices, setDevices] = useState<DeviceLicense[]>([]);
@@ -26,9 +27,45 @@ export default function DevicesManagementPage() {
       const raw = getRawSqlDb();
       const svc = new DeviceLicenseService(raw);
 
-      const allDevs = svc.listAllDevices();
-      const reqs = svc.listPendingRequests();
-      const st = svc.getDeviceStats();
+      let allDevs = svc.listAllDevices();
+      let reqs = svc.listPendingRequests();
+      let st = svc.getDeviceStats();
+
+      // Check Supabase Cloud Database
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: cloudDevs, error } = await supabase.from('registered_devices').select('*');
+          if (!error && cloudDevs && cloudDevs.length > 0) {
+            const mapped: DeviceLicense[] = cloudDevs.map((cd: any) => ({
+              id: cd.id,
+              organizationId: cd.organization_id,
+              deviceFingerprint: cd.terminal_code || cd.id,
+              deviceName: cd.device_name || 'POS Terminal',
+              deviceType: (cd.device_type as any) || 'POS_TERMINAL',
+              macAddress: null,
+              hostname: null,
+              osInfo: 'Windows Desktop POS',
+              status: cd.status || 'ACTIVE',
+              approvedBy: 'superadmin',
+              approvedAt: cd.registered_at,
+              suspendedReason: null,
+              lastSeenAt: cd.registered_at,
+              registeredAt: cd.registered_at || new Date().toISOString(),
+              expiresAt: null,
+            }));
+            allDevs = mapped;
+            st = {
+              totalActive: mapped.filter((d) => d.status === 'ACTIVE').length,
+              totalPending: mapped.filter((d) => d.status === 'PENDING_APPROVAL').length,
+              totalSuspended: mapped.filter((d) => d.status === 'SUSPENDED').length,
+              totalRevoked: mapped.filter((d) => d.status === 'REVOKED').length,
+              byOrg: st.byOrg || [],
+            };
+          }
+        } catch (e) {
+          console.warn('[Supabase Cloud] Devices fetch warning:', e);
+        }
+      }
 
       setDevices(allDevs);
       setPendingRequests(reqs);
@@ -44,7 +81,7 @@ export default function DevicesManagementPage() {
     loadData();
   }, []);
 
-  const handleApprove = (devId: string) => {
+  const handleApprove = async (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
@@ -52,13 +89,28 @@ export default function DevicesManagementPage() {
     const ok = svc.approveDevice(devId, adminId);
     if (ok) {
       saveLocalDbState();
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('registered_devices').update({ status: 'ACTIVE' }).eq('id', devId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'DEVICE_APPROVED',
+            entity_type: 'DEVICE',
+            entity_id: devId,
+            reason: 'Device authorization approved by admin',
+            created_at: new Date().toISOString(),
+          });
+        } catch {}
+      }
       setActionNotice('Device authorized and activated.');
       setTimeout(() => setActionNotice(null), 3500);
       loadData();
     }
   };
 
-  const handleSuspend = (devId: string) => {
+  const handleSuspend = async (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
@@ -66,13 +118,28 @@ export default function DevicesManagementPage() {
     const ok = svc.suspendDevice(devId, 'Suspended by Super Admin', adminId);
     if (ok) {
       saveLocalDbState();
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('registered_devices').update({ status: 'SUSPENDED' }).eq('id', devId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'DEVICE_SUSPENDED',
+            entity_type: 'DEVICE',
+            entity_id: devId,
+            reason: 'Device suspended by Super Admin',
+            created_at: new Date().toISOString(),
+          });
+        } catch {}
+      }
       setActionNotice('Device suspended.');
       setTimeout(() => setActionNotice(null), 3500);
       loadData();
     }
   };
 
-  const handleRevoke = (devId: string) => {
+  const handleRevoke = async (devId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.email || 'superadmin';
     const raw = getRawSqlDb();
@@ -80,6 +147,21 @@ export default function DevicesManagementPage() {
     const ok = svc.revokeDevice(devId, 'Permanent revocation by Super Admin', adminId);
     if (ok) {
       saveLocalDbState();
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('registered_devices').update({ status: 'REVOKED' }).eq('id', devId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'DEVICE_REVOKED',
+            entity_type: 'DEVICE',
+            entity_id: devId,
+            reason: 'Permanent revocation by Super Admin',
+            created_at: new Date().toISOString(),
+          });
+        } catch {}
+      }
       setActionNotice('Device license revoked.');
       setTimeout(() => setActionNotice(null), 3500);
       loadData();

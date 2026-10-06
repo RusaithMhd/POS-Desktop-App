@@ -25,7 +25,7 @@ export default function TrialsManagementPage() {
     setIsLoading(true);
     try {
       await getLocalDb();
-      const list = CustomerRegistrationService.listAllRegistrations();
+      const list = await CustomerRegistrationService.listAllRegistrations();
       // Filter those that have trial_ends_at or are in TRIALING status
       const trialList = list.filter(
         (item) => item.status === 'TRIALING' || item.selected_plan_code === 'FREE_TRIAL' || item.trial_ends_at
@@ -42,11 +42,11 @@ export default function TrialsManagementPage() {
     loadData();
   }, []);
 
-  const handleExtendSubmit = () => {
+  const handleExtendSubmit = async () => {
     if (!targetOrg) return;
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    const ok = CustomerRegistrationService.extendTrial(
+    const ok = await CustomerRegistrationService.extendTrial(
       targetOrg.organization_id,
       daysToAdd,
       adminId,

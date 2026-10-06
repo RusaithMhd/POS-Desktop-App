@@ -43,7 +43,7 @@ export default function SubscriptionsApprovalPage() {
     setIsLoading(true);
     try {
       await getLocalDb();
-      const list = CustomerRegistrationService.listAllRegistrations();
+      const list = await CustomerRegistrationService.listAllRegistrations();
       setSubscriptions(list);
     } catch (e) {
       console.error(e);
@@ -110,7 +110,7 @@ export default function SubscriptionsApprovalPage() {
       const adminSession = AdminAuthService.getActiveSession();
       const adminId = adminSession?.id || 'superadmin';
 
-      CustomerRegistrationService.activatePaidAccount({
+      await CustomerRegistrationService.activatePaidAccount({
         organizationId: activeTargetSub.organization_id,
         planName,
         planCode: selectedPlanDuration,
@@ -142,10 +142,10 @@ export default function SubscriptionsApprovalPage() {
     }
   };
 
-  const handleReject = (orgId: string) => {
+  const handleReject = async (orgId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    const ok = CustomerRegistrationService.suspendOrganization(orgId, 'Subscription request rejected by administrator', adminId);
+    const ok = await CustomerRegistrationService.suspendOrganization(orgId, 'Subscription request rejected by administrator', adminId);
     if (ok) {
       setActionNotice('Subscription request rejected.');
       setTimeout(() => setActionNotice(null), 3500);

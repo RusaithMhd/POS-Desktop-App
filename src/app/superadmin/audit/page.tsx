@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, RefreshCw, Search, Calendar, User, Building2, Clock } from 'lucide-react';
 import { AdminAuthGuard, AdminHeader } from '@/components/auth/AdminAuthGuard';
 import { getLocalDb, getRawSqlDb } from '@/infrastructure/database/sqlite/db';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 export default function AdminAuditLogsPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -13,6 +14,23 @@ export default function AdminAuditLogsPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('admin_audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+          if (!error && data && data.length > 0) {
+            setLogs(data);
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('[Supabase Cloud] Failed to fetch audit logs:', err);
+        }
+      }
+
       await getLocalDb();
       const db = getRawSqlDb();
       const list: any[] = [];

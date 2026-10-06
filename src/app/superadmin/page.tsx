@@ -105,8 +105,8 @@ export default function SuperAdminDashboard() {
       await getLocalDb();
       const db = getRawSqlDb();
 
-      // Load all registrations
-      const regs = (CustomerRegistrationService.listAllRegistrations() as unknown) as RegistrationRow[];
+      // Load all registrations (Live Supabase Cloud with offline SQLite fallback)
+      const regs = (await CustomerRegistrationService.listAllRegistrations() as unknown) as RegistrationRow[];
       setRegistrations(regs);
 
       // Trigger realtime scanner
@@ -288,11 +288,11 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleExtendSubmit = () => {
+  const handleExtendSubmit = async () => {
     if (!selectedOrgId) return;
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    const ok = CustomerRegistrationService.extendTrial(selectedOrgId, extendDays, adminId, 'Extended by Super Admin');
+    const ok = await CustomerRegistrationService.extendTrial(selectedOrgId, extendDays, adminId, 'Extended by Super Admin');
     if (ok) {
       setActionMessage(`Trial extended by ${extendDays} days!`);
       setTimeout(() => setActionMessage(null), 3500);
@@ -302,11 +302,11 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleQuickExtendOrg = (orgId?: string) => {
+  const handleQuickExtendOrg = async (orgId?: string) => {
     if (!orgId) return;
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    const ok = CustomerRegistrationService.extendTrial(orgId, 14, adminId, 'Quick Extend +14d');
+    const ok = await CustomerRegistrationService.extendTrial(orgId, 14, adminId, 'Quick Extend +14d');
     if (ok) {
       setActionMessage('Trial extended by +14 days!');
       setTimeout(() => setActionMessage(null), 3500);
@@ -314,11 +314,11 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleSuspendSubmit = () => {
+  const handleSuspendSubmit = async () => {
     if (!selectedOrgId) return;
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    const ok = CustomerRegistrationService.suspendOrganization(selectedOrgId, suspendReason || 'Violation of terms', adminId);
+    const ok = await CustomerRegistrationService.suspendOrganization(selectedOrgId, suspendReason || 'Violation of terms', adminId);
     if (ok) {
       setActionMessage('Organization suspended.');
       setTimeout(() => setActionMessage(null), 3500);
@@ -329,10 +329,10 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleReactivate = (orgId: string) => {
+  const handleReactivate = async (orgId: string) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    CustomerRegistrationService.activateOrganization(orgId, adminId);
+    await CustomerRegistrationService.activateOrganization(orgId, adminId);
     setActionMessage('Organization reactivated.');
     setTimeout(() => setActionMessage(null), 3500);
     loadData(false);

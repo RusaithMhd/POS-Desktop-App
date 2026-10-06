@@ -20,11 +20,36 @@ function DownloadContent() {
   const [showQuickGuide, setShowQuickGuide] = useState(false);
   const [downloadStarted, setDownloadStarted] = useState<string | null>(null);
 
+  const getZipDownloadUrl = () => {
+    if (process.env.NEXT_PUBLIC_ZIP_DOWNLOAD_URL) {
+      return process.env.NEXT_PUBLIC_ZIP_DOWNLOAD_URL;
+    }
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      return '/downloads/TRIWYN-POS-Complete-Setup-Package.zip';
+    }
+    return 'https://github.com/RusaithMhd/POS-Desktop-App/releases/latest/download/TRIWYN-POS-Complete-Setup-Package.zip';
+  };
+
+  const getExeDownloadUrl = () => {
+    if (process.env.NEXT_PUBLIC_EXE_DOWNLOAD_URL) {
+      return process.env.NEXT_PUBLIC_EXE_DOWNLOAD_URL;
+    }
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      return '/downloads/POS-Setup.exe';
+    }
+    return 'https://github.com/RusaithMhd/POS-Desktop-App/releases/latest/download/POS-Setup.exe';
+  };
+
   const handleDownloadZipPackage = () => {
     setDownloadStarted('Entire Application Package (ZIP with Installer & Support Files)');
+    const url = getZipDownloadUrl();
     const link = document.createElement('a');
-    link.href = '/downloads/TRIWYN-POS-Complete-Setup-Package.zip';
+    link.href = url;
     link.download = 'TRIWYN-POS-Complete-Setup-Package.zip';
+    if (url.startsWith('http')) {
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -32,9 +57,14 @@ function DownloadContent() {
 
   const handleDownloadInstaller = () => {
     setDownloadStarted('Standalone Windows Installer (POS-Setup.exe)');
+    const url = getExeDownloadUrl();
     const link = document.createElement('a');
-    link.href = '/downloads/POS-Setup.exe';
+    link.href = url;
     link.download = 'POS-Setup.exe';
+    if (url.startsWith('http')) {
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

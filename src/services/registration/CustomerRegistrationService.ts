@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Database } from 'sql.js';
 import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { ensureAdminTables } from '@/infrastructure/database/sqlite/adminSchema';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -145,6 +146,45 @@ export class CustomerRegistrationService {
       }
 
       saveLocalDbState();
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('organizations').upsert({
+            id: orgId,
+            name: payload.businessName,
+            code: orgCode,
+            email: payload.email.toLowerCase().trim(),
+            phone: payload.phone || null,
+          });
+
+          await supabase.from('customer_registrations').upsert({
+            id: regId,
+            organization_id: orgId,
+            email: payload.email.toLowerCase().trim(),
+            full_name: payload.fullName,
+            business_name: payload.businessName,
+            phone: payload.phone || null,
+            country: payload.country || 'Sri Lanka',
+            password_hash: passwordHash,
+            selected_plan_code: planCode,
+            billing_cycle: payload.billingCycle,
+            status: initialStatus,
+          });
+
+          if (planId) {
+            await supabase.from('subscriptions').upsert({
+              id: subId,
+              organization_id: orgId,
+              plan_id: planCode,
+              status: isTrial ? 'TRIALING' : 'INCOMPLETE',
+              billing_cycle: payload.billingCycle,
+              trial_ends_at: trialEndsAt,
+            });
+          }
+        } catch (cloudErr) {
+          console.warn('[Supabase] Registration cloud sync warning:', cloudErr);
+        }
+      }
 
       return {
         success: true,
@@ -331,12 +371,81 @@ export class CustomerRegistrationService {
     } catch {}
   }
 
-  static listAllRegistrations(): Record<string, unknown>[] {
+  static async listAllRegistrations(): Promise<Record<string, unknown>[]> {
+    // 1. Check Supabase Cloud Database first
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const [regsRes, subsRes, orgsRes] = await Promise.all([
+          supabase.from('customer_registrations').select('*').order('created_at', { ascending: false }),
+          supabase.from('subscriptions').select('*'),
+          supabase.from('organizations').select('*'),
+        ]);
+
+        if (!regsRes.error && regsRes.data && regsRes.data.length > 0) {
+          const subsMap = new Map<string, any>();
+          if (subsRes.data) {
+            subsRes.data.forEach((s: any) => subsMap.set(s.organization_id, s));
+          }
+
+          const orgsMap = new Map<string, any>();
+          if (orgsRes.data) {
+            orgsRes.data.forEach((o: any) => orgsMap.set(o.id, o));
+          }
+
+          const results: Record<string, unknown>[] = regsRes.data.map((cr: any) => {
+            const sub = subsMap.get(cr.organization_id) || {};
+            const org = orgsMap.get(cr.organization_id) || {};
+            return {
+              id: cr.id,
+              organization_id: cr.organization_id,
+              business_name: cr.business_name || org.name || 'Commercial Merchant',
+              full_name: cr.full_name || 'Admin',
+              email: cr.email || org.email || '',
+              phone: cr.phone || org.phone || '',
+              country: cr.country || 'Sri Lanka',
+              selected_plan_code: cr.selected_plan_code || 'FREE_TRIAL',
+              billing_cycle: cr.billing_cycle || sub.billing_cycle || 'monthly',
+              status: cr.status || 'TRIALING',
+              sub_status: sub.status || cr.status || 'TRIALING',
+              trial_ends_at: sub.trial_ends_at || cr.trial_ends_at || '',
+              current_period_end: sub.current_period_end || '',
+              payment_status: cr.payment_status || 'PENDING',
+              payment_reference: cr.payment_reference || '',
+              notes: cr.notes || '',
+              created_at: cr.created_at,
+              updated_at: cr.updated_at,
+              plan_name: cr.selected_plan_code || 'Free Trial',
+            };
+          });
+
+          // Sync into local SQLite in background for offline caching
+          try {
+            const db = getRawSqlDb();
+            results.forEach((r: any) => {
+              db.run(
+                `INSERT OR REPLACE INTO customer_registrations
+                  (id, organization_id, email, full_name, business_name, phone, country, selected_plan_code, billing_cycle, status, notes, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [r.id, r.organization_id, r.email, r.full_name, r.business_name, r.phone, r.country, r.selected_plan_code, r.billing_cycle, r.status, r.notes, r.created_at, r.updated_at]
+              );
+            });
+            saveLocalDbState();
+          } catch {}
+
+          return results;
+        }
+      } catch (cloudErr) {
+        console.warn('[Supabase Cloud] Failed to fetch live registrations, falling back to local SQLite:', cloudErr);
+      }
+    }
+
+    // 2. Fallback: Query local SQLite
     const db = getRawSqlDb();
+    ensureAdminTables(db);
     this.ensureDefaultRegistrations(db);
     const stmt = db.prepare(`
       SELECT cr.*, 
-             s.status as sub_status, s.trial_ends_at,
+             s.status as sub_status, s.trial_ends_at, s.current_period_end,
              p.name as plan_name
       FROM customer_registrations cr
       LEFT JOIN subscriptions s ON s.organization_id = cr.organization_id
@@ -354,7 +463,7 @@ export class CustomerRegistrationService {
   // APPROVE SUBSCRIPTION (Super Admin action)
   // ---------------------------------------------------------------------------
 
-  static approveSubscription(organizationId: string, adminId: string): boolean {
+  static async approveSubscription(organizationId: string, adminId: string): Promise<boolean> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     const periodEnd = new Date(Date.now() + 30 * 86400_000).toISOString();
@@ -364,10 +473,11 @@ export class CustomerRegistrationService {
         [now, periodEnd, now, organizationId]
       );
       db.run(
-        `UPDATE customer_registrations SET status = 'ACTIVE', updated_at = ? WHERE organization_id = ?`,
+        `UPDATE customer_registrations SET status = 'ACTIVE', payment_status = 'VERIFIED', updated_at = ? WHERE organization_id = ?`,
         [now, organizationId]
       );
-      // Audit
+
+      // Audit local
       const id = `sub_evt-${Date.now()}`;
       try {
         db.run(
@@ -375,8 +485,42 @@ export class CustomerRegistrationService {
            SELECT ?, organization_id, id, 'PLAN_ACTIVATED', 'ADMIN_OVERRIDE', ?, ? FROM subscriptions WHERE organization_id = ?`,
           [id, adminId, now, organizationId]
         );
-      } catch { /* subscription_events may be missing org */ }
+      } catch { /* subscription_events non-fatal */ }
+
       saveLocalDbState();
+
+      // Cloud Supabase Sync
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('subscriptions').update({
+            status: 'ACTIVE',
+            current_period_start: now,
+            current_period_end: periodEnd,
+            updated_at: now,
+          }).eq('organization_id', organizationId);
+
+          await supabase.from('customer_registrations').update({
+            status: 'ACTIVE',
+            payment_status: 'VERIFIED',
+            updated_at: now,
+          }).eq('organization_id', organizationId);
+
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'SUBSCRIPTION_APPROVED',
+            entity_type: 'SUBSCRIPTION',
+            entity_id: organizationId,
+            target_org_id: organizationId,
+            reason: 'Super Admin approved subscription',
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Approve subscription sync warning:', e);
+        }
+      }
+
       return true;
     } catch { return false; }
   }
@@ -385,7 +529,7 @@ export class CustomerRegistrationService {
   // SUSPEND ORGANIZATION (Super Admin action)
   // ---------------------------------------------------------------------------
 
-  static suspendOrganization(organizationId: string, reason: string, adminId: string): boolean {
+  static async suspendOrganization(organizationId: string, reason: string, adminId: string): Promise<boolean> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -394,8 +538,23 @@ export class CustomerRegistrationService {
       saveLocalDbState();
 
       if (isSupabaseConfigured && supabase) {
-        supabase.from('customer_registrations').update({ status: 'SUSPENDED', notes: reason, updated_at: now }).eq('organization_id', organizationId).then();
-        supabase.from('subscriptions').update({ status: 'SUSPENDED', updated_at: now }).eq('organization_id', organizationId).then();
+        try {
+          await supabase.from('customer_registrations').update({ status: 'SUSPENDED', notes: reason, updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('subscriptions').update({ status: 'SUSPENDED', updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'ORGANIZATION_SUSPENDED',
+            entity_type: 'ORGANIZATION',
+            entity_id: organizationId,
+            target_org_id: organizationId,
+            reason: reason || 'Manual Admin Suspension',
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Suspend organization sync warning:', e);
+        }
       }
 
       return true;
@@ -406,7 +565,7 @@ export class CustomerRegistrationService {
   // REACTIVATE ORGANIZATION (Super Admin action)
   // ---------------------------------------------------------------------------
 
-  static activateOrganization(organizationId: string, adminId: string): boolean {
+  static async activateOrganization(organizationId: string, adminId: string): Promise<boolean> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -415,8 +574,23 @@ export class CustomerRegistrationService {
       saveLocalDbState();
 
       if (isSupabaseConfigured && supabase) {
-        supabase.from('customer_registrations').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId).then();
-        supabase.from('subscriptions').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId).then();
+        try {
+          await supabase.from('customer_registrations').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('subscriptions').update({ status: 'ACTIVE', updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'ORGANIZATION_ACTIVATED',
+            entity_type: 'ORGANIZATION',
+            entity_id: organizationId,
+            target_org_id: organizationId,
+            reason: 'Super Admin manual reactivation',
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Reactivate organization sync warning:', e);
+        }
       }
 
       return true;
@@ -427,7 +601,7 @@ export class CustomerRegistrationService {
   // CHANGE PLAN (Super Admin action)
   // ---------------------------------------------------------------------------
 
-  static changeOrganizationPlan(organizationId: string, planCode: string, adminId: string): boolean {
+  static async changeOrganizationPlan(organizationId: string, planCode: string, adminId: string): Promise<boolean> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -452,6 +626,27 @@ export class CustomerRegistrationService {
         [planCode, now, organizationId]
       );
       saveLocalDbState();
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('subscriptions').update({ plan_id: planCode, updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('customer_registrations').update({ selected_plan_code: planCode, updated_at: now }).eq('organization_id', organizationId);
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'PLAN_CHANGED',
+            entity_type: 'SUBSCRIPTION',
+            entity_id: organizationId,
+            target_org_id: organizationId,
+            reason: `Plan changed to ${planCode}`,
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Change plan sync warning:', e);
+        }
+      }
+
       return true;
     } catch { return false; }
   }
@@ -460,7 +655,7 @@ export class CustomerRegistrationService {
   // EXTEND TRIAL (Super Admin action)
   // ---------------------------------------------------------------------------
 
-  static extendTrial(organizationId: string, additionalDays: number, adminId: string, reason: string): boolean {
+  static async extendTrial(organizationId: string, additionalDays: number, adminId: string, reason: string): Promise<boolean> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -481,17 +676,33 @@ export class CustomerRegistrationService {
       saveLocalDbState();
 
       if (isSupabaseConfigured && supabase) {
-        supabase.from('subscriptions').update({
-          status: 'TRIALING',
-          trial_ends_at: newEnd,
-          current_period_end: newEnd,
-          updated_at: now,
-        }).eq('organization_id', organizationId).then();
+        try {
+          await supabase.from('subscriptions').update({
+            status: 'TRIALING',
+            trial_ends_at: newEnd,
+            current_period_end: newEnd,
+            updated_at: now,
+          }).eq('organization_id', organizationId);
 
-        supabase.from('customer_registrations').update({
-          status: 'TRIALING',
-          updated_at: now,
-        }).eq('organization_id', organizationId).then();
+          await supabase.from('customer_registrations').update({
+            status: 'TRIALING',
+            updated_at: now,
+          }).eq('organization_id', organizationId);
+
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: adminId,
+            admin_email: adminId,
+            action: 'TRIAL_EXTENDED',
+            entity_type: 'SUBSCRIPTION',
+            entity_id: organizationId,
+            target_org_id: organizationId,
+            reason: `Trial extended by ${additionalDays} days. Reason: ${reason}`,
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Extend trial sync warning:', e);
+        }
       }
 
       return true;
@@ -587,6 +798,7 @@ export class CustomerRegistrationService {
           business_name: payload.businessName,
           phone: payload.phone || null,
           country: payload.country || 'Sri Lanka',
+          password_hash: passwordHash,
           selected_plan_code: 'FREE_TRIAL',
           billing_cycle: 'monthly',
           status: 'TRIALING',
@@ -616,7 +828,7 @@ export class CustomerRegistrationService {
   // SUPER ADMIN MANUAL ACTIVATION (After Bank Transfer & Payment Verification)
   // ---------------------------------------------------------------------------
 
-  static activatePaidAccount(params: {
+  static async activatePaidAccount(params: {
     organizationId: string;
     planName: string;
     planCode: string;
@@ -627,11 +839,14 @@ export class CustomerRegistrationService {
     password: string;
     adminId: string;
     paymentReference?: string;
-  }): { success: boolean; username: string; expiryDate: string } {
+  }): Promise<{ success: boolean; username: string; expiryDate: string }> {
     const db = getRawSqlDb();
     const now = new Date().toISOString();
 
     try {
+      const passwordHash = bcrypt.hashSync(params.password, 10);
+      ensureAdminTables(db);
+
       // 1. Update subscription status to ACTIVE
       db.run(
         `UPDATE subscriptions
@@ -643,25 +858,41 @@ export class CustomerRegistrationService {
         [params.startDate, params.expiryDate, now, params.organizationId]
       );
 
-      // 2. Update registration status to ACTIVE
+      // Fetch customer email and business/full name for seamless login
+      const regStmt = db.prepare(`SELECT email, full_name, business_name FROM customer_registrations WHERE organization_id = :orgId LIMIT 1`);
+      regStmt.bind({ ':orgId': params.organizationId });
+      let customerEmail = '';
+      let customerFullName = params.username;
+      if (regStmt.step()) {
+        const obj = regStmt.getAsObject();
+        customerEmail = (obj.email as string) || '';
+        customerFullName = (obj.full_name as string) || (obj.business_name as string) || params.username;
+      }
+      regStmt.free();
+
+      if (!customerEmail && params.username.includes('@')) {
+        customerEmail = params.username.toLowerCase().trim();
+      }
+
+      // 2. Update registration status and password_hash in local SQLite
       db.run(
         `UPDATE customer_registrations
          SET status = 'ACTIVE',
              payment_status = 'VERIFIED',
+             password_hash = ?,
              payment_reference = ?,
+             notes = ?,
              updated_at = ?
          WHERE organization_id = ?`,
-        [params.paymentReference || 'BANK_TRANSFER_VERIFIED', now, params.organizationId]
+        [passwordHash, params.paymentReference || 'BANK_TRANSFER_VERIFIED', `Activated credentials: ${params.username}`, now, params.organizationId]
       );
 
       // 3. Assign or update user credentials in the users table
-      const userStmt = db.prepare(`SELECT id FROM users WHERE username = :u LIMIT 1`);
-      userStmt.bind({ ':u': params.username });
+      const userStmt = db.prepare(`SELECT id FROM users WHERE username = :u OR (email = :e AND email != '') LIMIT 1`);
+      userStmt.bind({ ':u': params.username, ':e': customerEmail });
       let existingUserId = '';
       if (userStmt.step()) existingUserId = (userStmt.getAsObject().id as string) || '';
       userStmt.free();
-
-      const passwordHash = bcrypt.hashSync(params.password, 12);
 
       // Get branch ID
       const branchStmt = db.prepare(`SELECT id FROM branches LIMIT 1`);
@@ -677,19 +908,19 @@ export class CustomerRegistrationService {
 
       if (existingUserId) {
         db.run(
-          `UPDATE users SET password_hash = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
-          [passwordHash, now, existingUserId]
+          `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
+          [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
         );
       } else {
         const newUserId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         db.run(
-          `INSERT INTO users (id, business_id, branch_id, role_id, username, password_hash, full_name, status, is_active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
-          [newUserId, params.organizationId, branchId, roleId, params.username, passwordHash, params.username, now, now]
+          `INSERT INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, status, is_active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+          [newUserId, params.organizationId, branchId, roleId, params.username, customerEmail, passwordHash, customerFullName, now, now]
         );
       }
 
-      // 4. Record audit log
+      // 4. Record audit log locally
       try {
         const logId = `audit-${Date.now()}`;
         db.run(
@@ -700,6 +931,44 @@ export class CustomerRegistrationService {
       } catch { /* audit log non-fatal */ }
 
       saveLocalDbState();
+
+      // 5. Cloud Supabase Sync
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('subscriptions').update({
+            status: 'ACTIVE',
+            plan_id: params.planCode,
+            current_period_start: params.startDate,
+            current_period_end: params.expiryDate,
+            updated_at: now,
+          }).eq('organization_id', params.organizationId);
+
+          await supabase.from('customer_registrations').update({
+            status: 'ACTIVE',
+            password_hash: passwordHash,
+            selected_plan_code: params.planCode,
+            payment_status: 'VERIFIED',
+            payment_reference: params.paymentReference || 'BANK_TRANSFER_VERIFIED',
+            notes: `Activated credentials: ${params.username}`,
+            updated_at: now,
+          }).eq('organization_id', params.organizationId);
+
+          await supabase.from('admin_audit_logs').insert({
+            id: `audit-${Date.now()}`,
+            admin_user_id: params.adminId,
+            admin_email: params.adminId,
+            action: 'ACTIVATION_APPROVED',
+            entity_type: 'SUBSCRIPTION',
+            entity_id: params.organizationId,
+            target_org_id: params.organizationId,
+            reason: `Activated ${params.planName} plan until ${params.expiryDate}. Assigned Cashier: ${params.username}`,
+            created_at: now,
+          });
+        } catch (e) {
+          console.warn('[Supabase Cloud] Manual activation sync warning:', e);
+        }
+      }
+
       return { success: true, username: params.username, expiryDate: params.expiryDate };
     } catch (err: any) {
       console.error('Manual activation failed:', err);

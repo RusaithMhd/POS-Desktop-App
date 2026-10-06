@@ -35,7 +35,7 @@ export default function CustomersManagementPage() {
     setIsLoading(true);
     try {
       await getLocalDb();
-      const list = CustomerRegistrationService.listAllRegistrations();
+      const list = await CustomerRegistrationService.listAllRegistrations();
       setRegistrations(list);
       AdminNotificationService.scanRegistrations(list);
     } catch (e) {
@@ -51,27 +51,27 @@ export default function CustomersManagementPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleToggleSuspend = (org: any) => {
+  const handleToggleSuspend = async (org: any) => {
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
     const isSuspended = org.status === 'SUSPENDED';
 
     if (isSuspended) {
-      CustomerRegistrationService.activateOrganization(org.organization_id, adminId);
+      await CustomerRegistrationService.activateOrganization(org.organization_id, adminId);
       setActionNotice('Organization reactivated.');
     } else {
-      CustomerRegistrationService.suspendOrganization(org.organization_id, 'Super Admin Manual Suspension', adminId);
+      await CustomerRegistrationService.suspendOrganization(org.organization_id, 'Super Admin Manual Suspension', adminId);
       setActionNotice('Organization suspended.');
     }
     setTimeout(() => setActionNotice(null), 3500);
     loadData();
   };
 
-  const handleExtendTrial = () => {
+  const handleExtendTrial = async () => {
     if (!activeOrg) return;
     const adminSession = AdminAuthService.getActiveSession();
     const adminId = adminSession?.id || 'admin';
-    CustomerRegistrationService.extendTrial(activeOrg.organization_id, extendDays, adminId, 'Extended in Customers Directory');
+    await CustomerRegistrationService.extendTrial(activeOrg.organization_id, extendDays, adminId, 'Extended in Customers Directory');
     setActionNotice(`Trial extended by ${extendDays} days.`);
     setTimeout(() => setActionNotice(null), 3500);
     setShowExtendModal(false);

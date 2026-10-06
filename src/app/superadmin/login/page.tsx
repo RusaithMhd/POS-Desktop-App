@@ -27,10 +27,10 @@ export default function SuperAdminLoginPage() {
     }
 
     getLocalDb()
-      .then(() => {
+      .then(async () => {
         setIsDbReady(true);
-        // Check if any admin users exist
-        const hasAdmins = AdminAuthService.hasAnyAdminUsers();
+        // Check if any admin users exist (locally or in Supabase Cloud)
+        const hasAdmins = await AdminAuthService.hasAnyAdminUsersAsync();
         setIsFirstTimeSetup(!hasAdmins);
       })
       .catch((err) => {

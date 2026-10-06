@@ -1,6 +1,7 @@
 -- ============================================================================
--- TRIWYN POS — SUPABASE CLOUD DATABASE SCHEMA
--- Run this script once in your Supabase SQL Editor (https://supabase.com/dashboard)
+-- TRIWYN POS — SUPABASE CLOUD DATABASE SCHEMA FOR SUPERADMIN & CLIENT MANAGEMENT
+-- Run this script once in your Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/hbjtqraanglrutvcoimt/sql/new
 -- ============================================================================
 
 -- 1. Organizations Table
@@ -75,11 +76,73 @@ CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 6. Super Admin Users Table
+CREATE TABLE IF NOT EXISTS public.admin_users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    full_name TEXT NOT NULL DEFAULT 'Super Administrator',
+    role TEXT NOT NULL DEFAULT 'SUPER_ADMIN',
+    is_active INT NOT NULL DEFAULT 1,
+    mfa_enabled INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- Enable Row Level Security and allow access for public anon & authenticated
+-- ============================================================================
+
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.registered_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon all on organizations" ON public.organizations;
+CREATE POLICY "Allow anon all on organizations" ON public.organizations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon all on customer_registrations" ON public.customer_registrations;
+CREATE POLICY "Allow anon all on customer_registrations" ON public.customer_registrations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon all on subscriptions" ON public.subscriptions;
+CREATE POLICY "Allow anon all on subscriptions" ON public.subscriptions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon all on registered_devices" ON public.registered_devices;
+CREATE POLICY "Allow anon all on registered_devices" ON public.registered_devices FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon all on admin_audit_logs" ON public.admin_audit_logs;
+CREATE POLICY "Allow anon all on admin_audit_logs" ON public.admin_audit_logs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon all on admin_users" ON public.admin_users;
+CREATE POLICY "Allow anon all on admin_users" ON public.admin_users FOR ALL USING (true) WITH CHECK (true);
+
 -- ============================================================================
 -- ENABLE REALTIME NOTIFICATIONS
--- Allows Supabase to broadcast live events when customers register or trials change
+-- Broadcast live changes when customers register, subscribe, or devices connect
 -- ============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_registrations;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.registered_devices;
-
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.organizations;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_registrations;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.registered_devices;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.admin_audit_logs;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+END $$;
