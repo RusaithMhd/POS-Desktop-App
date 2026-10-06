@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { getRawSqlDb, saveLocalDbState, migrateMissingColumns } from '@/infrastructure/database/sqlite/db';
 import { ensureAdminTables } from '@/infrastructure/database/sqlite/adminSchema';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
@@ -198,11 +198,24 @@ export class AuthService {
       rStmt.free();
     } catch {}
 
-    db.run(
-      `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, status, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
-      [userId, orgId, branchId, roleId, username, email, reg.password_hash, fullName, reg.phone || null, now, now]
-    );
+    migrateMissingColumns(db);
+    const userCols = db.exec("PRAGMA table_info(users)")[0]?.values?.map((v: any) => v[1]) || [];
+    const hasStatus = userCols.includes('status');
+
+    if (hasStatus) {
+      db.run(
+        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, status, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+        [userId, orgId, branchId, roleId, username, email, reg.password_hash, fullName, reg.phone || null, now, now]
+      );
+    } else {
+      db.run(
+        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [userId, orgId, branchId, roleId, username, email, reg.password_hash, fullName, reg.phone || null, now, now]
+      );
+    }
+
     try {
       db.run(
         `INSERT OR REPLACE INTO customer_registrations
@@ -264,11 +277,23 @@ export class AuthService {
       rStmt.free();
     } catch {}
 
-    db.run(
-      `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, status, is_active, created_at, updated_at)
-       VALUES (?, 'biz-001', ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
-      [userId, branchId, roleId, username, email, admin.password_hash, fullName, now, now]
-    );
+    migrateMissingColumns(db);
+    const userCols = db.exec("PRAGMA table_info(users)")[0]?.values?.map((v: any) => v[1]) || [];
+    const hasStatus = userCols.includes('status');
+
+    if (hasStatus) {
+      db.run(
+        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, status, is_active, created_at, updated_at)
+         VALUES (?, 'biz-001', ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+        [userId, branchId, roleId, username, email, admin.password_hash, fullName, now, now]
+      );
+    } else {
+      db.run(
+        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, is_active, created_at, updated_at)
+         VALUES (?, 'biz-001', ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [userId, branchId, roleId, username, email, admin.password_hash, fullName, now, now]
+      );
+    }
     saveLocalDbState();
 
     return {

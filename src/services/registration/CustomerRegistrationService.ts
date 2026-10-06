@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Database } from 'sql.js';
-import { getRawSqlDb, saveLocalDbState } from '@/infrastructure/database/sqlite/db';
+import { getRawSqlDb, saveLocalDbState, migrateMissingColumns } from '@/infrastructure/database/sqlite/db';
 import { ensureAdminTables } from '@/infrastructure/database/sqlite/adminSchema';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
@@ -744,12 +744,23 @@ export class CustomerRegistrationService {
 
     // 2. Register merchant POS user in local users table
     try {
+      migrateMissingColumns(db);
+      const userCols = db.exec("PRAGMA table_info(users)")[0]?.values?.map((v: any) => v[1]) || [];
+      const hasStatus = userCols.includes('status');
       const userId = `usr-${Date.now()}`;
-      db.run(
-        `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, status, is_active, created_at, updated_at)
-         VALUES (?, 'biz-001', 'branch-001', 'role-admin', ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
-        [userId, chosenUsername, payload.email.toLowerCase().trim(), passwordHash, payload.fullName, payload.phone || null, now, now]
-      );
+      if (hasStatus) {
+        db.run(
+          `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, status, is_active, created_at, updated_at)
+           VALUES (?, 'biz-001', 'branch-001', 'role-admin', ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+          [userId, chosenUsername, payload.email.toLowerCase().trim(), passwordHash, payload.fullName, payload.phone || null, now, now]
+        );
+      } else {
+        db.run(
+          `INSERT OR REPLACE INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, phone, is_active, created_at, updated_at)
+           VALUES (?, 'biz-001', 'branch-001', 'role-admin', ?, ?, ?, ?, ?, 1, ?, ?)`,
+          [userId, chosenUsername, payload.email.toLowerCase().trim(), passwordHash, payload.fullName, payload.phone || null, now, now]
+        );
+      }
     } catch {}
 
     // 3. Insert or update organization
@@ -906,18 +917,37 @@ export class CustomerRegistrationService {
       if (roleStmt.step()) roleId = (roleStmt.getAsObject().id as string) || 'role-admin';
       roleStmt.free();
 
+      migrateMissingColumns(db);
+      const userCols = db.exec("PRAGMA table_info(users)")[0]?.values?.map((v: any) => v[1]) || [];
+      const hasStatus = userCols.includes('status');
+
       if (existingUserId) {
-        db.run(
-          `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
-          [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
-        );
+        if (hasStatus) {
+          db.run(
+            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
+            [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
+          );
+        } else {
+          db.run(
+            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, updated_at = ? WHERE id = ?`,
+            [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
+          );
+        }
       } else {
         const newUserId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        db.run(
-          `INSERT INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, status, is_active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
-          [newUserId, params.organizationId, branchId, roleId, params.username, customerEmail, passwordHash, customerFullName, now, now]
-        );
+        if (hasStatus) {
+          db.run(
+            `INSERT INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, status, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+            [newUserId, params.organizationId, branchId, roleId, params.username, customerEmail, passwordHash, customerFullName, now, now]
+          );
+        } else {
+          db.run(
+            `INSERT INTO users (id, business_id, branch_id, role_id, username, email, password_hash, full_name, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+            [newUserId, params.organizationId, branchId, roleId, params.username, customerEmail, passwordHash, customerFullName, now, now]
+          );
+        }
       }
 
       // 4. Record audit log locally

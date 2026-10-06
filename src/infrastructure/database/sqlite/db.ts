@@ -71,12 +71,14 @@ export async function getLocalDb() {
     if (savedData) {
       rawDb = new SQL.Database(savedData);
       createTables(rawDb);
+      migrateMissingColumns(rawDb);
       ensureAdminTables(rawDb);
       ensurePermissionsMigrated(rawDb);
       ensureOpeningBatchesExist(rawDb);
     } else {
       rawDb = new SQL.Database();
       createTables(rawDb);
+      migrateMissingColumns(rawDb);
       ensureAdminTables(rawDb);
       seedInitialData(rawDb);
       ensureOpeningBatchesExist(rawDb);
@@ -104,6 +106,25 @@ export function getRawSqlDb(): Database {
     throw new Error('Database not initialized yet.');
   }
   return rawDb;
+}
+
+export function migrateMissingColumns(db: Database) {
+  try {
+    const userCols = db.exec("PRAGMA table_info(users)")[0]?.values?.map((v: any) => v[1]) || [];
+    if (userCols.length > 0) {
+      if (!userCols.includes('status')) {
+        db.run("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE'");
+      }
+      if (!userCols.includes('last_login')) {
+        db.run("ALTER TABLE users ADD COLUMN last_login TEXT");
+      }
+      if (!userCols.includes('last_activity')) {
+        db.run("ALTER TABLE users ADD COLUMN last_activity TEXT");
+      }
+    }
+  } catch (e) {
+    console.warn('[SQLite migrateMissingColumns warning]:', e);
+  }
 }
 
 function saveDatabaseToStorage(db: Database) {
