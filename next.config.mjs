@@ -16,6 +16,8 @@ const nextConfig = {
         path: false,
         crypto: false,
       };
+    } else {
+      config.externals = [...(config.externals || []), 'sql.js'];
     }
     return config;
   },

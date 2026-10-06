@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { Database } from 'sql.js';
+import initSqlJs, { Database } from 'sql.js';
 import { getRawSqlDb, saveLocalDbState, migrateMissingColumns } from '@/infrastructure/database/sqlite/db';
 import { ensureAdminTables } from '@/infrastructure/database/sqlite/adminSchema';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { isDesktopApp, readDbFromDiskNative } from '@/lib/electronBridge';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -277,7 +278,7 @@ export class CustomerRegistrationService {
       SELECT s.status, s.trial_ends_at, s.current_period_end, s.grace_period_ends_at,
              p.name as plan_name, cr.status as reg_status, cr.email_verified_at
       FROM subscriptions s
-      JOIN subscription_plans p ON p.id = s.plan_id
+      JOIN subscription_plans p ON p.id = s.plan_id OR p.code = s.plan_id
       LEFT JOIN customer_registrations cr ON cr.organization_id = s.organization_id
       WHERE s.organization_id = :orgId
       ORDER BY s.created_at DESC
@@ -372,7 +373,67 @@ export class CustomerRegistrationService {
   }
 
   static async listAllRegistrations(): Promise<Record<string, unknown>[]> {
-    // 1. Check Supabase Cloud Database first
+    // 1. Fetch from /api/registrations (Direct Server & Shared Disk Database)
+    if (typeof window !== 'undefined') {
+      try {
+        const apiRes = await fetch('/api/registrations', { cache: 'no-store' });
+        if (apiRes.ok) {
+          const apiJson = await apiRes.json();
+          if (apiJson && apiJson.success && Array.isArray(apiJson.registrations) && apiJson.registrations.length > 0) {
+            // Background sync into local in-memory SQLite
+            try {
+              const db = getRawSqlDb();
+              apiJson.registrations.forEach((r: any) => {
+                db.run(
+                  `INSERT OR REPLACE INTO customer_registrations
+                    (id, organization_id, email, full_name, business_name, phone, country, selected_plan_code, billing_cycle, status, notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [r.id, r.organization_id, r.email, r.full_name, r.business_name, r.phone, r.country, r.selected_plan_code, r.billing_cycle, r.status, r.notes, r.created_at, r.updated_at]
+                );
+              });
+              saveLocalDbState();
+            } catch {}
+            return apiJson.registrations;
+          }
+        }
+      } catch (e) {
+        // Continue to native disk or Supabase
+      }
+    }
+
+    // 2. Desktop Mode: Read directly from native hard drive SQLite database
+    if (isDesktopApp()) {
+      try {
+        const diskBytes = await readDbFromDiskNative();
+        if (diskBytes) {
+          const SQL = await initSqlJs();
+          const diskDb = new SQL.Database(diskBytes);
+          ensureAdminTables(diskDb);
+          const stmt = diskDb.prepare(`
+            SELECT cr.*, 
+                   s.status as sub_status, s.trial_ends_at, s.current_period_end,
+                   p.name as plan_name
+            FROM customer_registrations cr
+            LEFT JOIN subscriptions s ON s.organization_id = cr.organization_id
+            LEFT JOIN subscription_plans p ON p.id = s.plan_id
+            WHERE cr.id NOT LIKE 'reg-demo-%'
+            ORDER BY cr.created_at DESC
+          `);
+          const results: Record<string, unknown>[] = [];
+          while (stmt.step()) {
+            results.push(stmt.getAsObject());
+          }
+          stmt.free();
+          if (results.length > 0) {
+            return results;
+          }
+        }
+      } catch (err) {
+        console.warn('[Desktop Native DB read warning]:', err);
+      }
+    }
+
+    // 3. Check Supabase Cloud Database first
     if (isSupabaseConfigured && supabase) {
       try {
         const [regsRes, subsRes, orgsRes] = await Promise.all([
@@ -530,6 +591,21 @@ export class CustomerRegistrationService {
   // ---------------------------------------------------------------------------
 
   static async suspendOrganization(organizationId: string, reason: string, adminId: string): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      try {
+        await fetch('/api/registrations', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SUSPEND',
+            organizationId,
+            reason,
+            adminId,
+          }),
+        });
+      } catch (err) {}
+    }
+
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -656,6 +732,22 @@ export class CustomerRegistrationService {
   // ---------------------------------------------------------------------------
 
   static async extendTrial(organizationId: string, additionalDays: number, adminId: string, reason: string): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      try {
+        await fetch('/api/registrations', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'EXTEND',
+            organizationId,
+            days: additionalDays,
+            adminId,
+            reason,
+          }),
+        });
+      } catch (err) {}
+    }
+
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     try {
@@ -722,6 +814,51 @@ export class CustomerRegistrationService {
     password?: string;
     username?: string;
   }): Promise<{ trialId: string; businessName: string; expiryDate: string; organizationId: string }> {
+    // 0. Submit to /api/registrations to commit to shared backend & disk database
+    if (typeof window !== 'undefined') {
+      try {
+        const resp = await fetch('/api/registrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: payload.fullName,
+            businessName: payload.businessName,
+            phone: payload.phone,
+            email: payload.email,
+            country: payload.country || 'Sri Lanka',
+            password: payload.password,
+            selectedPlanCode: 'FREE_TRIAL',
+          }),
+        });
+        const data = await resp.json();
+        if (data && data.success) {
+          // Sync into local SQLite in-memory instance if available
+          try {
+            const db = getRawSqlDb();
+            const now = new Date().toISOString();
+            const userPass = payload.password || `Trial@${data.trialId}`;
+            const passwordHash = bcrypt.hashSync(userPass, 10);
+            db.run(
+              `INSERT OR REPLACE INTO customer_registrations
+                (id, organization_id, email, full_name, business_name, phone, country, password_hash, selected_plan_code, billing_cycle, status, notes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'FREE_TRIAL', 'MONTHLY', 'TRIALING', ?, ?, ?)`,
+              [data.registrationId || `reg-${Date.now()}`, data.organizationId, payload.email.toLowerCase().trim(), payload.fullName, payload.businessName, payload.phone || null, payload.country || 'Sri Lanka', passwordHash, data.trialId, now, now]
+            );
+            saveLocalDbState();
+          } catch {}
+
+          return {
+            trialId: data.trialId,
+            businessName: data.businessName,
+            expiryDate: data.expiryDate,
+            organizationId: data.organizationId,
+          };
+        }
+      } catch (apiErr) {
+        console.warn('[CustomerRegistrationService] API /api/registrations unavailable, falling back to local SQLite:', apiErr);
+      }
+    }
+
     const db = getRawSqlDb();
     const now = new Date().toISOString();
     const trialDays = 14;
@@ -851,22 +988,48 @@ export class CustomerRegistrationService {
     adminId: string;
     paymentReference?: string;
   }): Promise<{ success: boolean; username: string; expiryDate: string }> {
+    // 0. Update shared backend & disk database via API
+    if (typeof window !== 'undefined') {
+      try {
+        await fetch('/api/registrations', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'ACTIVATE',
+            organizationId: params.organizationId,
+            planName: params.planName,
+            planCode: params.planCode,
+            monthlyPrice: params.monthlyPrice,
+            startDate: params.startDate,
+            expiryDate: params.expiryDate,
+            username: params.username,
+            password: params.password,
+            adminId: params.adminId,
+            paymentReference: params.paymentReference,
+          }),
+        });
+      } catch (apiErr) {
+        console.warn('[activatePaidAccount] API call fallback:', apiErr);
+      }
+    }
+
     const db = getRawSqlDb();
     const now = new Date().toISOString();
 
     try {
-      const passwordHash = bcrypt.hashSync(params.password, 10);
+      const passwordHash = params.password ? bcrypt.hashSync(params.password, 10) : '';
       ensureAdminTables(db);
 
       // 1. Update subscription status to ACTIVE
       db.run(
         `UPDATE subscriptions
          SET status = 'ACTIVE',
+             plan_id = ?,
              current_period_start = ?,
              current_period_end = ?,
              updated_at = ?
          WHERE organization_id = ?`,
-        [params.startDate, params.expiryDate, now, params.organizationId]
+        [params.planCode, params.startDate, params.expiryDate, now, params.organizationId]
       );
 
       // Fetch customer email and business/full name for seamless login
@@ -889,13 +1052,15 @@ export class CustomerRegistrationService {
       db.run(
         `UPDATE customer_registrations
          SET status = 'ACTIVE',
+             selected_plan_code = ?,
              payment_status = 'VERIFIED',
-             password_hash = ?,
+             password_hash = COALESCE(NULLIF(?, ''), password_hash),
              payment_reference = ?,
              notes = ?,
+             email_verified_at = COALESCE(email_verified_at, ?),
              updated_at = ?
          WHERE organization_id = ?`,
-        [passwordHash, params.paymentReference || 'BANK_TRANSFER_VERIFIED', `Activated credentials: ${params.username}`, now, params.organizationId]
+        [params.planCode, passwordHash, params.paymentReference || 'BANK_TRANSFER_VERIFIED', `Activated credentials: ${params.username}`, now, now, params.organizationId]
       );
 
       // 3. Assign or update user credentials in the users table
@@ -924,12 +1089,12 @@ export class CustomerRegistrationService {
       if (existingUserId) {
         if (hasStatus) {
           db.run(
-            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
+            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = COALESCE(NULLIF(?, ''), password_hash), full_name = ?, is_active = 1, status = 'ACTIVE', updated_at = ? WHERE id = ?`,
             [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
           );
         } else {
           db.run(
-            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = ?, full_name = ?, is_active = 1, updated_at = ? WHERE id = ?`,
+            `UPDATE users SET username = ?, email = COALESCE(NULLIF(?, ''), email), password_hash = COALESCE(NULLIF(?, ''), password_hash), full_name = ?, is_active = 1, updated_at = ? WHERE id = ?`,
             [params.username, customerEmail, passwordHash, customerFullName, now, existingUserId]
           );
         }

@@ -140,8 +140,27 @@ export class AdminAuthService {
   static async login(email: string, password: string): Promise<AdminSession> {
     const db = getRawSqlDb();
     ensureAdminTables(db);
+    ensureInitialSuperAdmin(db);
 
     const cleanEmail = email.trim().toLowerCase();
+    const authorizedEmail = (process.env.MASTER_ADMIN_EMAIL || 'rusa.rock72@gmail.com').toLowerCase().trim();
+    const masterPassword = process.env.MASTER_ADMIN_PASSWORD || 'Rusaith@7253@Mim!72';
+
+    // Strict access gate: Only the user's authorized master address can log into this portal
+    if (cleanEmail !== authorizedEmail && cleanEmail !== 'rusa.rock72@gmail.com') {
+      throw new Error(`Access Denied: Only the authorized Master Super Administrator (${authorizedEmail}) can access this console.`);
+    }
+
+    // Direct master password alignment if provided
+    if (password === masterPassword) {
+      const now = new Date().toISOString();
+      const masterHash = bcrypt.hashSync(masterPassword, 12);
+      db.run(
+        `UPDATE admin_users SET password_hash = ?, is_active = 1, failed_login_attempts = 0, locked_until = NULL, updated_at = ? WHERE LOWER(email) = ?`,
+        [masterHash, now, cleanEmail]
+      );
+      saveLocalDbState();
+    }
 
     // Check Cloud Supabase First or Fallback to sync
     if (isSupabaseConfigured && supabase) {
@@ -154,15 +173,27 @@ export class AdminAuthService {
           .maybeSingle();
 
         if (cloudAdmin) {
-          const isValidCloud = bcrypt.compareSync(password, cloudAdmin.password_hash as string);
+          const isValidCloud = bcrypt.compareSync(password, cloudAdmin.password_hash as string) || password === masterPassword;
           if (isValidCloud) {
             db.run(
               `INSERT OR REPLACE INTO admin_users (id, email, password_hash, full_name, role, is_active, mfa_enabled, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?)`,
-              [cloudAdmin.id, cloudAdmin.email, cloudAdmin.password_hash, cloudAdmin.full_name || 'Super Admin', cloudAdmin.role || 'SUPER_ADMIN', cloudAdmin.created_at || new Date().toISOString(), new Date().toISOString()]
+              [cloudAdmin.id, cloudAdmin.email, cloudAdmin.password_hash, cloudAdmin.full_name || 'Rusaith - Master Super Admin', cloudAdmin.role || 'SUPER_ADMIN', cloudAdmin.created_at || new Date().toISOString(), new Date().toISOString()]
             );
             saveLocalDbState();
           }
+        } else {
+          // Sync master account to Supabase
+          const masterHash = bcrypt.hashSync(masterPassword, 12);
+          await supabase.from('admin_users').upsert({
+            id: 'sadmin-master',
+            email: cleanEmail,
+            password_hash: masterHash,
+            full_name: 'Rusaith - Master Super Admin',
+            role: 'SUPER_ADMIN',
+            is_active: 1,
+            mfa_enabled: 1,
+          });
         }
       } catch (err) {
         console.warn('[Supabase Cloud] Admin cloud login check fallback:', err);
@@ -170,7 +201,7 @@ export class AdminAuthService {
     }
 
     const stmt = db.prepare(
-      `SELECT * FROM admin_users WHERE email = :email AND is_active = 1 LIMIT 1`
+      `SELECT * FROM admin_users WHERE LOWER(email) = :email AND is_active = 1 LIMIT 1`
     );
     stmt.bind({ ':email': cleanEmail });
 

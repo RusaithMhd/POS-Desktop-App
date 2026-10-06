@@ -39,4 +39,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('trigger-quick-action', handler);
     return () => ipcRenderer.removeListener('trigger-quick-action', handler);
   },
+
+  // Master Super Admin 2FA
+  sendAdminOtp: (payload) => ipcRenderer.invoke('send-admin-otp', payload),
+  verifyAdminOtp: (payload) => ipcRenderer.invoke('verify-admin-otp', payload),
 });

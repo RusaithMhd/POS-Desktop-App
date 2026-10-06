@@ -20,6 +20,12 @@ function DownloadContent() {
   const [showQuickGuide, setShowQuickGuide] = useState(false);
   const [downloadStarted, setDownloadStarted] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      window.location.href = '/login';
+    }
+  }, []);
+
   const getZipDownloadUrl = () => {
     if (process.env.NEXT_PUBLIC_ZIP_DOWNLOAD_URL) {
       return process.env.NEXT_PUBLIC_ZIP_DOWNLOAD_URL;

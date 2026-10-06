@@ -33,8 +33,6 @@ import { DesktopTitleBar } from '@/components/desktop/DesktopTitleBar';
 import { isDesktopApp } from '@/lib/electronBridge';
 import { AppSplashLoader } from '@/components/desktop/AppSplashLoader';
 
-import { UserSwitchModal } from '@/components/auth/UserSwitchModal';
-import { UserCheck as UserSwitchIcon } from 'lucide-react';
 
 import { defaultSettingsService } from '@/services/settings/SettingsService';
 
@@ -48,7 +46,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [enableKOTDisplay, setEnableKOTDisplay] = useState(true);
 
   useEffect(() => {
@@ -117,8 +114,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     cleanPath === '/download-trial' ||
     cleanPath === '/terms' ||
     cleanPath === '/privacy' ||
-    cleanPath.startsWith('/superadmin') ||
-    cleanPath.startsWith('/account');
+    cleanPath.startsWith('/superadmin');
 
   if (isStandalonePage) {
     return (
@@ -137,10 +133,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     router.push('/login');
   };
 
-  const handleUserSwitched = (newSession: UserSession) => {
-    setUser(newSession);
-    window.location.reload();
-  };
 
   const hasPerm = (requiredPerm?: string | string[]) => {
     if (!requiredPerm) return true;
@@ -198,11 +190,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="flex flex-col h-screen bg-slate-100 text-slate-900 font-sans overflow-hidden select-none">
       <AppSplashLoader />
       <DesktopTitleBar />
-      <UserSwitchModal
-        isOpen={isSwitchModalOpen}
-        onClose={() => setIsSwitchModalOpen(false)}
-        onSwitched={handleUserSwitched}
-      />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* PERSISTENT SIDEBAR */}
         <aside
@@ -252,7 +239,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       .map((item) => {
                         const Icon = item.icon;
                         const isActive =
-                          cleanPath === item.href || (item.href !== '/dashboard' && cleanPath.startsWith(item.href));
+                          cleanPath === item.href || (item.href !== '/dashboard' && cleanPath.startsWith(item.href + '/'));
 
                         return (
                           <Link
@@ -293,7 +280,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       .map((item) => {
                         const Icon = item.icon;
                         const isActive =
-                          cleanPath === item.href || (item.href !== '/dashboard' && cleanPath.startsWith(item.href));
+                          cleanPath === item.href || (item.href !== '/dashboard' && cleanPath.startsWith(item.href + '/'));
 
                         return (
                           <Link
@@ -339,17 +326,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setIsSwitchModalOpen(true)}
-                      title="Quick Switch User / Role"
-                      className="p-1 rounded text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer transition-colors"
-                    >
-                      <UserSwitchIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
                       onClick={handleLogout}
                       title="Logout Session"
-                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                      className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
                     </button>

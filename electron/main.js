@@ -545,3 +545,71 @@ ipcMain.on('window-toggle-fullscreen', () => {
 ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
+
+// 13. Master Super Admin 2FA OTP Email Dispatch via IPC
+const pendingAdminOtps = new Map();
+
+ipcMain.handle('send-admin-otp', async (event, { email, password }) => {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const masterEmail = (process.env.MASTER_ADMIN_EMAIL || 'rusa.rock72@gmail.com').toLowerCase().trim();
+  const masterPass = process.env.MASTER_ADMIN_PASSWORD || 'Rusaith@7253@Mim!72';
+
+  if (cleanEmail !== masterEmail) {
+    return { success: false, error: 'Access Denied: Only the authorized Master Super Administrator can access this console.' };
+  }
+  if (password !== masterPass) {
+    return { success: false, error: 'Invalid master security credentials.' };
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingAdminOtps.set(cleanEmail, { code: otp, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 });
+
+  // Send email if nodemailer available
+  try {
+    const nodemailer = require('nodemailer');
+    const user = process.env.SMTP_USER || 'rusa.rock72@gmail.com';
+    const pass = process.env.SMTP_PASS || '';
+    if (pass && pass.trim()) {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '465', 10),
+        secure: true,
+        auth: { user, pass },
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"TRIWYN Master Security" <${user}>`,
+        to: cleanEmail,
+        subject: `🛡️ ${otp} is your TRIWYN Super Admin Verification Code`,
+        text: `Your Master Super Admin OTP verification code is: ${otp}. Valid for 10 minutes.`,
+      });
+      return { success: true, sent: true, message: `Security OTP sent to ${cleanEmail}.` };
+    }
+  } catch (err) {
+    console.warn('[Electron SMTP Error]:', err.message);
+  }
+
+  return {
+    success: true,
+    sent: false,
+    isSimulated: true,
+    fallbackOtp: otp,
+    message: 'Security OTP generated.',
+  };
+});
+
+ipcMain.handle('verify-admin-otp', async (event, { email, otp }) => {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const rec = pendingAdminOtps.get(cleanEmail);
+  if (!rec) return { success: false, error: 'No active OTP verification code found.' };
+  if (Date.now() > rec.expiresAt) {
+    pendingAdminOtps.delete(cleanEmail);
+    return { success: false, error: 'Verification code has expired.' };
+  }
+  if (rec.code !== (otp || '').trim()) {
+    rec.attempts += 1;
+    return { success: false, error: `Invalid code. ${5 - rec.attempts} attempt(s) remaining.` };
+  }
+  pendingAdminOtps.delete(cleanEmail);
+  return { success: true };
+});
+

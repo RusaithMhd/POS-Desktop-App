@@ -203,7 +203,15 @@ function RegisterForm() {
           country: country || 'Sri Lanka',
           password: password,
         });
-        window.location.href = `/download-trial?trialId=${trialRes.trialId}&business=${encodeURIComponent(trialRes.businessName)}&expiry=${encodeURIComponent(trialRes.expiryDate)}`;
+        if (typeof window !== 'undefined' && (window as any).electronAPI) {
+          setRegistrationResult({
+            success: true,
+            organizationId: trialRes.organizationId,
+            trialEndsAt: trialRes.expiryDate,
+          });
+        } else {
+          window.location.href = `/download-trial?trialId=${trialRes.trialId}&business=${encodeURIComponent(trialRes.businessName)}&expiry=${encodeURIComponent(trialRes.expiryDate)}`;
+        }
         return;
       }
 

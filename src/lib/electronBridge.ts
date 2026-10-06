@@ -36,6 +36,10 @@ export interface ElectronAPI {
   // Event Listeners
   onMaximizeChanged: (callback: (isMaximized: boolean) => void) => () => void;
   onQuickAction: (callback: (action: string) => void) => () => void;
+
+  // Master Super Admin 2FA
+  sendAdminOtp?: (payload: { email: string; password: string }) => Promise<{ success: boolean; sent?: boolean; isSimulated?: boolean; fallbackOtp?: string; error?: string; message?: string }>;
+  verifyAdminOtp?: (payload: { email: string; otp: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

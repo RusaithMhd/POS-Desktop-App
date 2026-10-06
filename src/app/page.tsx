@@ -66,8 +66,12 @@ export default function HomePage() {
         country: country || 'Sri Lanka',
       });
 
-      // Redirect directly to the download page with trial details
-      router.push(`/download-trial?trialId=${res.trialId}&business=${encodeURIComponent(res.businessName)}&expiry=${encodeURIComponent(res.expiryDate)}`);
+      // Redirect directly to the download page with trial details (or login for desktop)
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        router.push('/login');
+      } else {
+        router.push(`/download-trial?trialId=${res.trialId}&business=${encodeURIComponent(res.businessName)}&expiry=${encodeURIComponent(res.expiryDate)}`);
+      }
     } catch (err: any) {
       setFormError(err.message || 'Failed to initialize trial. Please try again.');
     } finally {

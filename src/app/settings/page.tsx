@@ -379,13 +379,6 @@ function SettingsContent() {
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
               <span>Data Protection Dashboard</span>
             </a>
-            <a
-              href="/admin"
-              className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-            >
-              <ShieldCheck className="h-4 w-4 text-amber-200" />
-              <span>Super Admin Console</span>
-            </a>
           </div>
         </div>
 

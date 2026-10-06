@@ -911,11 +911,15 @@ export default function SuperAdminDashboard() {
                             {/* Activate / Assign Credentials */}
                             <button
                               onClick={() => openActivationModal(r)}
-                              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[11px] transition-all inline-flex items-center gap-1 shadow-md shadow-emerald-950 cursor-pointer"
-                              title="Assign Plan, Duration & Cashier Login Credentials"
+                              className={`px-2.5 py-1.5 ${
+                                isActive
+                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950'
+                                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-950'
+                              } text-white font-bold rounded-lg text-[11px] transition-all inline-flex items-center gap-1 shadow-md cursor-pointer`}
+                              title={isActive ? "Manage Plan, Duration & Cashier Credentials" : "Assign Plan, Duration & Cashier Login Credentials"}
                             >
                               <Key className="h-3 w-3" />
-                              <span>Activate</span>
+                              <span>{isActive ? 'Manage' : 'Activate'}</span>
                             </button>
 
                             {/* Extend Trial */}
