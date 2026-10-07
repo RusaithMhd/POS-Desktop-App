@@ -97,7 +97,12 @@ export default function SuperAdminLoginPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, password: password.trim() }),
         });
-        data = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          throw new Error(`Server returned ${res.status}: API route unavailable. Please check backend deployment.`);
+        }
       }
 
       if (!data || !data.success) {
@@ -144,7 +149,12 @@ export default function SuperAdminLoginPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, otp: fullCode }),
         });
-        data = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          throw new Error(`Server returned ${res.status}: API route unavailable. Please check backend deployment.`);
+        }
       }
 
       if (!data || !data.success) {

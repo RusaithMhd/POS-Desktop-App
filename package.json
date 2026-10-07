@@ -7,7 +7,7 @@
     "dev": "next dev",
     "desktop:dev": "concurrently \"next dev -p 3001\" \"wait-on http-get://localhost:3001 && cross-env ELECTRON_START_URL=http://localhost:3001 electron .\"",
     "build": "next build",
-    "desktop:build": "next build",
+    "desktop:build": "cross-env IS_ELECTRON_BUILD=true next build",
     "desktop:package": "electron-builder",
     "desktop:dist": "npm run desktop:build && electron-builder",
     "start": "next start",

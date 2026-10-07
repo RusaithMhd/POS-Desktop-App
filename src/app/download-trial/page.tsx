@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Download, FileText, CheckCircle2, Shield, Laptop, BookOpen,
   ArrowRight, MessageCircle, X, ChevronRight, Check, Printer,
-  Store, ShoppingBag, Database, Lock
+  Store, ShoppingBag, Database, Lock, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -49,13 +49,13 @@ function DownloadContent() {
   const handleDownloadZipPackage = () => {
     setDownloadStarted('Entire Application Package (ZIP with Installer & Support Files)');
     const url = getZipDownloadUrl();
+    if (url.startsWith('http')) {
+      window.open(url, '_blank');
+      return;
+    }
     const link = document.createElement('a');
     link.href = url;
     link.download = 'TRIWYN-POS-Complete-Setup-Package.zip';
-    if (url.startsWith('http')) {
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-    }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -64,13 +64,13 @@ function DownloadContent() {
   const handleDownloadInstaller = () => {
     setDownloadStarted('Standalone Windows Installer (POS-Setup.exe)');
     const url = getExeDownloadUrl();
+    if (url.startsWith('http')) {
+      window.open(url, '_blank');
+      return;
+    }
     const link = document.createElement('a');
     link.href = url;
     link.download = 'POS-Setup.exe';
-    if (url.startsWith('http')) {
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-    }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -309,6 +309,17 @@ function DownloadContent() {
                       <span className="truncate text-slate-200 group-hover:text-white">Install_TRIWYN_POS.bat</span>
                     </div>
                     <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-amber-400 shrink-0" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadSupportFile('Uninstall_TRIWYN_POS.bat')}
+                    className="p-3 bg-slate-950 hover:bg-slate-800/90 text-left border border-slate-800 rounded-xl flex items-center justify-between transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Trash2 className="h-4 w-4 text-rose-400 shrink-0" />
+                      <span className="truncate text-slate-200 group-hover:text-white">Uninstall_TRIWYN_POS.bat</span>
+                    </div>
+                    <Download className="h-3.5 w-3.5 text-slate-500 group-hover:text-rose-400 shrink-0" />
                   </button>
                 </div>
               </div>

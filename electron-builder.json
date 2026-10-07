@@ -31,7 +31,9 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "TRIWYN POS"
+    "shortcutName": "TRIWYN POS",
+    "uninstallDisplayName": "TRIWYN POS",
+    "deleteAppDataOnUninstall": false
   },
   "fileAssociations": [
     {

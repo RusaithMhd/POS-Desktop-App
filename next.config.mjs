@@ -1,9 +1,9 @@
-/** @type {import('next').NextConfig} */
+const isElectronBuild = process.env.IS_ELECTRON_BUILD === 'true';
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'export',
-  trailingSlash: true,
+  ...(isElectronBuild ? { output: 'export', trailingSlash: true } : {}),
   images: {
     unoptimized: true,
   },
